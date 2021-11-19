@@ -5,11 +5,11 @@
 from socket import *
 import threading
 
-import left.left_packet
-from left.left_error import LeftError
-from left.file_table import FileTable
-from left.watch_dog import WatchDog
-from left.left_constants import *
+import left_packet
+from left_error import LeftError
+from file_table import FileTable
+from watch_dog import WatchDog
+from left_constants import *
 
 
 class LeftServer:
@@ -46,22 +46,27 @@ class LeftServer:
         print(f"Client {address}: socket connected")
         client_socket.settimeout(30)  # 30 seconds timeout for connect request
         try:
-            packet = left.left_packet.read_packet_from_socket(client_socket)
+            packet = left_packet.read_packet_from_socket(client_socket)
 
             if packet.opcode != OPCODE_CONNECT or packet.target is None or packet.target != b"LEFT":
                 raise LeftError("Protocol error: first packet must be a CONNECT packet")
 
             self.clients[address] = client_socket
-            client_socket.send(left.left_packet.LeftPacket(OPCODE_SUCCESS).to_bytes())
+            client_socket.send(left_packet.LeftPacket(OPCODE_SUCCESS).to_bytes())
 
             print(f"Client {address}: peer service level connection established")
 
             client_socket.settimeout(0)  # TODO: safe?
             while True:
-                packet = left.left_packet.read_packet_from_socket(client_socket)
-
+                packet = left_packet.read_packet_from_socket(client_socket)
+                if packet.opcode == OPCODE_SYNC_FILE_TABLE:
+                    self.handle_sync_file_table(packet)
 
         except LeftError as e:
             print(f"Client {address}: {e.message}")
             client_socket.close()
             print(f"Client {address}: force disconnected")
+
+    def handle_sync_file_table(self, request: left_packet.LeftPacket):
+        print()
+

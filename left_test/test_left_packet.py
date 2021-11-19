@@ -4,8 +4,7 @@
 
 import unittest
 
-from left.left_constants import *
-from left.left_packet import LeftPacket
+from left.left_packet import *
 
 
 class MyTestCase(unittest.TestCase):

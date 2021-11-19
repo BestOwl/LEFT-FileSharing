@@ -1,15 +1,16 @@
 # This file is part of Large Efficient Flexible and Trusty (LEFT) File Sharing
 # Author: Hao Su <hao.su19@student.xjtlu.edu.cn>
 # Copyright (c) 2021 Hao Su
-
+import copy
+from os import DirEntry
 from socket import *
 from struct import *
 
-import left.left_packet
-from left.left_error import LeftError
-from left.left_packet import LeftPacket
-from left.left_constants import *
-from left.file_table import FileTable
+import left_packet
+from left_error import LeftError
+from left_packet import LeftPacket
+from left_constants import *
+from file_table import FileTable
 
 
 class LeftClient:
@@ -28,16 +29,13 @@ class LeftClient:
         packet.version = b"\x10"
         self.socket.send(packet.to_bytes())
 
-        response = left.left_packet.read_packet_from_socket(self.socket)
+        response = left_packet.read_packet_from_socket(self.socket)
         if response.opcode == OPCODE_SUCCESS:
             print(f"Connected to peer server: {self.server_address}:{self.server_port}")
         else:
             raise LeftError(f"Unable to connect to LEFT server: response opcode: {response.opcode}")
 
         packet = LeftPacket(OPCODE_SYNC_FILE_TABLE)
-        temp_file_table = self.file_table.copy_table()
-        for path in temp_file_table:
-            pack("")
-
-        packet.data = pack("", )
-
+        temp_file_table = copy.deepcopy(self.file_table)
+        packet.data = temp_file_table.serialize()
+        self.socket.send(packet.to_bytes())

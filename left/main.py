@@ -4,9 +4,10 @@
 
 import argparse
 import threading
-from left.file_table import FileTable
-from left.left_server import LeftServer
-from left.left_client import LeftClient
+
+from file_table import FileTable
+from left_server import LeftServer
+from left_client import LeftClient
 
 
 def main():

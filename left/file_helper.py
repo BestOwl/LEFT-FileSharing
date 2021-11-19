@@ -8,12 +8,12 @@ import hashlib
 BUF_SIZE: int = 65536  # 64kb buffer
 
 
-def get_file_last_modified_time(path: str):
+def get_file_last_modified_time(dir_entry: os.DirEntry) -> int:
     """
-    :param path: File path string
-    :return: Last modified time of a specific file
+    :param dir_entry: os.DirEntry object of a file
+    :return: Last modified time of a specific file, in nano seconds
     """
-    return os.path.getmtime(path)
+    return dir_entry.stat().st_mtime_ns
 
 
 def get_file_hash_md5(path: str):
@@ -32,3 +32,14 @@ def get_file_hash_md5(path: str):
             md5.update(data)
 
     return md5.hexdigest()
+
+
+def scan_path_tree(path: str):
+    """
+    Recursively yield DirEntry objects for given path
+    """
+    for dir_entry in os.scandir(path):
+        if dir_entry.is_dir(follow_symlinks=False):
+            yield from scan_path_tree(dir_entry.path)
+        else:
+            yield dir_entry

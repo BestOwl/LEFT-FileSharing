@@ -1,12 +1,13 @@
 # This file is part of Large Efficient Flexible and Trusty (LEFT) File Sharing
 # Author: Hao Su <hao.su19@student.xjtlu.edu.cn>
 # Copyright (c) 2021 Hao Su
-
+import os
 from struct import *
 import socket
 
-from left.left_error import LeftError
-from left.left_constants import *
+from left.file_table import FileTable
+from left_error import LeftError
+from left_constants import *
 
 
 class LeftPacket:
