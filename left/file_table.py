@@ -3,12 +3,11 @@
 # Copyright (c) 2021 Hao Su
 
 from struct import *
-import file_helper
 import threading
 import os
 
-from file_info import FileInfo
-from left.file_event import *
+from file_event import *
+import file_helper
 
 
 class FileTable:
@@ -34,33 +33,21 @@ class FileTable:
     def __delitem__(self, key):
         del self.file_dict[key]
 
-    def compare_file_by_mtime_md5(self, dir_entry: os.DirEntry):
-        """
-        Check whether a specific file has been modified or not
-            1.  check the last modification time.
-            2.  If it is equal to the modification time stored in the file table, return immediately.
-            3.  If not, then check md5 hash.
-            4.  If the actual md5 is equal to the md5 stored in the file table, update the modification
-                time in the file table, then return.
-            5.  If not, this file has been modified, emit a file modification event and update the file table.
-        :param dir_entry: os.DirEntry object of a file
-        :return: None
-        """
-        actual_mtime = file_helper.get_file_last_modified_time(dir_entry)
-        if self.file_dict[dir_entry.path].last_modified_time != actual_mtime:
-            actual_md5 = file_helper.get_file_hash_md5(dir_entry.path)
-            if self.file_dict[dir_entry.path].hash_md5 != actual_md5:
-                print(f"M {dir_entry.path}")
-                self.update_file_table_md5(dir_entry.path, actual_md5)
-            else:
-                self.update_file_table_mtime(dir_entry.path, actual_mtime)
+    def __copy__(self):
+        new_ft = FileTable(self.root_path, auto_init_table=False)
+        for path in self:
+            new_ft.add_file_to_file_table(
+                FileInfo(path, self.file_dict[path].last_modified_time, self.file_dict[path].hash_md5))
+        return new_ft
 
-    def add_file_to_file_table_by_dir_entry(self, dir_entry: os.DirEntry):
+    def add_file_to_file_table_by_dir_entry(self, dir_entry: os.DirEntry) -> FileInfo:
         self.lock.acquire()
-        self.file_dict[dir_entry.path] = FileInfo(dir_entry.path,
-                                                  file_helper.get_file_last_modified_time(dir_entry),
-                                                  file_helper.get_file_hash_md5(dir_entry.path))
+        new_file_info = FileInfo(dir_entry.path,
+                                 file_helper.get_file_last_modified_time(dir_entry),
+                                 file_helper.get_file_hash_md5(dir_entry.path))
+        self.file_dict[dir_entry.path] = new_file_info
         self.lock.release()
+        return new_file_info
 
     def add_file_to_file_table(self, file_info: FileInfo):
         self.lock.acquire()
@@ -87,10 +74,10 @@ class FileTable:
         buf = bytes()
         for path in self.file_dict:
             b_path = bytes(path, 'utf-8')
-            b_mtime = pack("!I", self.file_dict[path].last_modified_time)
+            b_mtime = pack("!Q", self.file_dict[path].last_modified_time)
             b_hash_md5 = bytes(self.file_dict[path].hash_md5, 'utf-8')
 
-            sz_mtime = calcsize("!I")
+            sz_mtime = calcsize("!Q")
             buf = pack(f"{len(buf)}s {len(b_path)}s s {sz_mtime}s {len(b_hash_md5)}s s",
                        buf, b_path, b"\x00", b_mtime, b_hash_md5, b"\x00")
         return buf
@@ -135,12 +122,11 @@ class FileTableDeserializeError(Exception):
 
 
 def deserialize(buffer: bytes) -> FileTable:
-    remote_ft = FileTable("share", auto_init_table=False)
+    remote_ft = FileTable("../run/share/share", auto_init_table=False)
     sz_buffer = len(buffer)
     pos = 0
 
     while pos < sz_buffer:
-        file_path = ""
         start_pos = pos
         while True:
             if buffer[pos] == 0:
@@ -149,10 +135,9 @@ def deserialize(buffer: bytes) -> FileTable:
         file_path = str(unpack_from(f"{pos - start_pos}s", buffer, start_pos)[0], "utf-8")
         pos += 1
 
-        mtime = unpack_from("!I", buffer, pos)[0]
+        mtime = unpack_from("!Q", buffer, pos)[0]
         pos += 4
 
-        hash_md5 = ""
         start_pos = pos
         while True:
             if buffer[pos] == 0:

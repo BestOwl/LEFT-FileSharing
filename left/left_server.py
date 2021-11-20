@@ -6,9 +6,9 @@ from socket import *
 import threading
 
 import left_packet
+from file_table import FileTable, deserialize as deserialize_file_table
+from left_client_manager import LeftClientManager
 from left_error import LeftError
-from file_table import FileTable
-from watch_dog import WatchDog
 from left_constants import *
 
 
@@ -17,17 +17,13 @@ class LeftServer:
     Large Efficient File Transport (LEFT) server
     """
 
-    def __init__(self, port: int, file_table: FileTable):
+    def __init__(self, port: int, file_table: FileTable, left_client_manager: LeftClientManager):
         self.server_socket = None
         self.server_port = port
-        self.clients: dict = {}
         self.file_table = file_table
-        self.watchdog = WatchDog(self.file_table)
+        self.left_client_manager = left_client_manager
 
     def start(self):
-        thread_watch_dog = threading.Thread(target=self.start_watch_dog)
-        thread_watch_dog.start()
-
         self.server_socket: socket = socket(AF_INET, SOCK_STREAM)
         self.server_socket.bind(("", self.server_port))
         self.server_socket.listen(2)
@@ -35,38 +31,53 @@ class LeftServer:
 
         while True:
             client_socket, address = self.server_socket.accept()
-            client_thread = threading.Thread(target=self.client_socket_handler, args=(client_socket, address))
-            self.clients[address] = client_thread
-            client_thread.start()
+            client_handler = LeftServerClientHandler(client_socket, address, self.file_table, self.left_client_manager)
+            client_handler.start()
 
-    def start_watch_dog(self):
-        self.watchdog.start()
 
-    def client_socket_handler(self, client_socket: socket, address: (str, int)):
-        print(f"Client {address}: socket connected")
-        client_socket.settimeout(30)  # 30 seconds timeout for connect request
+class LeftServerClientHandler:
+
+    def __init__(self, client_socket, address_port: (str, int), file_table: FileTable,
+                 left_client_manager: LeftClientManager):
+        self.client_socket = client_socket
+        self.address_port = address_port
+        self.handler_thread = threading.Thread(target=self.client_socket_handler)
+        self.file_table = file_table
+        self.left_client_manager = left_client_manager
+
+    def start(self):
+        self.handler_thread.start()
+
+    def client_socket_handler(self):
+        print(f"Client {self.address_port}: socket connected")
+        self.client_socket.settimeout(10)  # 10 seconds timeout for connect request
         try:
-            packet = left_packet.read_packet_from_socket(client_socket)
+            packet = left_packet.read_packet_from_socket(self.client_socket)
 
             if packet.opcode != OPCODE_CONNECT or packet.target is None or packet.target != b"LEFT":
                 raise LeftError("Protocol error: first packet must be a CONNECT packet")
 
-            self.clients[address] = client_socket
-            client_socket.send(left_packet.LeftPacket(OPCODE_SUCCESS).to_bytes())
+            self.client_socket.send(left_packet.LeftPacket(OPCODE_SUCCESS).to_bytes())
 
-            print(f"Client {address}: peer service level connection established")
+            if not self.left_client_manager.is_connected(self.address_port[0]):
+                self.left_client_manager.try_connect(self.address_port[0])
 
-            client_socket.settimeout(0)  # TODO: safe?
+            print(f"Service Level Connection established with peer {self.address_port}")
+
+            self.client_socket.settimeout(None)  # TODO: safe?
             while True:
-                packet = left_packet.read_packet_from_socket(client_socket)
+                packet = left_packet.read_packet_from_socket(self.client_socket)
                 if packet.opcode == OPCODE_SYNC_FILE_TABLE:
                     self.handle_sync_file_table(packet)
 
         except LeftError as e:
-            print(f"Client {address}: {e.message}")
-            client_socket.close()
-            print(f"Client {address}: force disconnected")
+            print(f"Client {self.address_port}: {e.message}")
+            self.client_socket.close()
+            print(f"Client {self.address_port}: force disconnected")
 
     def handle_sync_file_table(self, request: left_packet.LeftPacket):
         print()
+        # remote_ft = deserialize_file_table(request.data)
+        # file_events = self.file_table.diff(remote_ft)
+
 
