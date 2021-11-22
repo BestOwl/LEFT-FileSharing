@@ -10,6 +10,7 @@ from file_helper import scan_path_tree
 from concurrent_queue import ConcurrentQueue
 import file_helper
 from file_event import *
+from file_info import get_normalized_file_path
 
 
 class WatchDog:
@@ -22,11 +23,13 @@ class WatchDog:
     def start(self):
         while not self.stop:
             for dir_entry in scan_path_tree(self.file_table.root_path):
-                if dir_entry.path not in self.file_table:
+                path = get_normalized_file_path(dir_entry.path)
+                if path not in self.file_table:
                     file_info = self.file_table.add_file_to_file_table_by_dir_entry(dir_entry)
                     self.file_event_queue.push(FileEvent(EVENT_SEND_NEW_FILE, file_info))
                 else:
-                    self.compare_file_by_mtime_md5(dir_entry)
+                    actual_mtime = file_helper.get_file_last_modified_time(dir_entry)
+                    self._compare_file_by_mtime_md5(path, actual_mtime)
             time.sleep(0.05)
 
             delete_list = []
@@ -37,7 +40,7 @@ class WatchDog:
             self.file_table.delete_range_from_file_table(delete_list)
             time.sleep(0.05)
 
-    def compare_file_by_mtime_md5(self, dir_entry: os.DirEntry):
+    def _compare_file_by_mtime_md5(self, path: str, actual_mtime: int):
         """
         Check whether a specific file has been modified or not
             1.  check the last modification time.
@@ -46,14 +49,12 @@ class WatchDog:
             4.  If the actual md5 is equal to the md5 stored in the file table, update the modification
                 time in the file table, then return.
             5.  If not, this file has been modified, emit a file modification event and update the file table.
-        :param dir_entry: os.DirEntry object of a file
         :return: None
         """
-        actual_mtime = file_helper.get_file_last_modified_time(dir_entry)
-        if self.file_table[dir_entry.path].last_modified_time != actual_mtime:
-            actual_md5 = file_helper.get_file_hash_md5(dir_entry.path)
-            if self.file_table[dir_entry.path].hash_md5 != actual_md5:
-                self.file_event_queue.push(FileEvent(EVENT_SEND_MODIFIED_FILE, self.file_table[dir_entry.path]))
-                self.file_table.update_file_table_md5(dir_entry.path, actual_md5)
+        if self.file_table[path].last_modified_time != actual_mtime:
+            actual_md5 = file_helper.get_file_hash_md5(path)
+            if self.file_table[path].hash_md5 != actual_md5:
+                self.file_event_queue.push(FileEvent(EVENT_SEND_MODIFIED_FILE, self.file_table[path]))
+                self.file_table.update_file_table_md5(path, actual_md5)
             else:
-                self.file_table.update_file_table_mtime(dir_entry.path, actual_mtime)
+                self.file_table.update_file_table_mtime(path, actual_mtime)
