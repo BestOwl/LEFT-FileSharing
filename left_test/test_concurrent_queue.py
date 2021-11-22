@@ -18,6 +18,17 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(2, queue.pop())
         self.assertEqual(3, queue.pop())
 
+    def test_over_pop(self):
+        queue = ConcurrentQueue()
+        queue.push(1)
+        queue.push(2)
+        queue.push(3)
+
+        for _ in range(3):
+            queue.pop()
+
+        self.assertIsNone(queue.pop())
+
 
 if __name__ == '__main__':
     unittest.main()

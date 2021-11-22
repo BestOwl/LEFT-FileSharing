@@ -53,6 +53,20 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual("foo", ft["share/a.txt"].hash_md5)
         self.assertEqual("bar", duplicated_ft["share/a.txt"].hash_md5, )
 
+    def test_file_table_different_path_separator(self):
+        ft_1 = FileTable("share", auto_init_table=False)
+        f1 = FileInfo("share/1.txt", 1, "1")
+        ft_1.add_file_to_file_table(f1)
+
+        ft_2 = FileTable("share", auto_init_table=False)
+        f2 = FileInfo("share\\1.txt", 1, "1")
+        ft_2.add_file_to_file_table(f2)
+
+        self.assertTrue(f1.file_path in ft_2)
+        self.assertTrue(f2.file_path in ft_1)
+
+        self.assertEqual(0, len(ft_1.diff(ft_2)))
+
 
 if __name__ == '__main__':
     unittest.main()

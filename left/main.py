@@ -10,9 +10,7 @@ from file_table import FileTable
 from concurrent_queue import ConcurrentQueue
 from left_error import LeftError
 from watch_dog import WatchDog
-from left_server import LeftServer
-from left_client import LeftClient
-from left_client_manager import LeftClientManager
+from left_manager import LeftManager
 
 
 def main():
@@ -22,35 +20,28 @@ def main():
 
     print(args.ip)
 
-    file_table = FileTable("../run/share/share")
+    file_table = FileTable("share")
     file_event_queue = ConcurrentQueue()
     watchdog = WatchDog(file_table, file_event_queue)
 
-    thread_watch_dog = threading.Thread(target=start_watch_dog, args=[watchdog])
+    thread_watch_dog = threading.Thread(name="WatchDog", target=start_watch_dog, args=[watchdog])
     thread_watch_dog.start()
 
-    client_manager = LeftClientManager(file_table)
-
-    server = LeftServer(25560, file_table, client_manager)
-    thread_server = threading.Thread(target=start_left_server, args=[server])
-    thread_server.start()
+    manager = LeftManager(file_table)
+    thread_manager = manager.start_delegate_server()
 
     try:
-        client_manager.try_connect(args.ip)
+        manager.try_client_connect(args.ip)
     except LeftError as e:
         print(f"Illegal peer detected, force disconnect: {e.message}")
     except socket.error as e:
         print(f"Failed to connect to peer {args.ip}: {e}")
 
-    thread_server.join()
+    thread_manager.join()
 
 
 def start_watch_dog(watchdog: WatchDog):
     watchdog.start()
-
-
-def start_left_server(left_server: LeftServer):
-    left_server.start()
 
 
 if __name__ == "__main__":
