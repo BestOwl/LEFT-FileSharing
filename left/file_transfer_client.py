@@ -12,7 +12,6 @@ from logger import Logger
 from left_constants import *
 from left_packet import LeftPacket, read_packet_from_stream
 from stream import SocketStream, FileStream
-import threading
 
 BUF_SIZE = 20971520  # 1MB
 
@@ -28,11 +27,7 @@ class FileTransferClient:
 
         self.sock = None
         self.sock_stream = None
-        self.thread_download = threading.Thread(name=f"Download-{file_path}", target=self.download)
         self.logger = Logger("FileTransferClient")
-
-    def start(self):
-        self.thread_download.start()
 
     def download(self):
         success = False

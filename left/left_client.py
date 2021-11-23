@@ -6,6 +6,7 @@ import threading
 from socket import *
 
 from file_transfer_client import FileTransferClient
+from parallel_dispatcher import ParallelDispatcher
 from stream import SocketStream
 from logger import Logger
 import left_packet
@@ -33,8 +34,8 @@ class LeftClient:
         self.thread_event_loop = None
         self.sock_stream = None
         self.is_self_server_accepted_peer_callback = is_self_server_accepted_peer_callback
-        self.downloaders = {}
         self.logger = Logger(f"LeftClient-{self.server_address}")
+        self.download_dispatcher = ParallelDispatcher(10)
 
     def __del__(self):
         self.dispose()
@@ -93,7 +94,7 @@ class LeftClient:
             if event is not None:
                 self.logger.log_debug(f"Dequeue event: {event}")
                 if event.event_id == EVENT_RECEIVE_NEW_FILE or event.event_id == EVENT_RECEIVE_MODIFIED_FILE:
-                    self.download(event, self.server_address)
+                    self.dispatch_download(event, self.server_address)
                 else:
                     packet = LeftPacket(OPCODE_FILE_EVENT)
                     if event.event_id == EVENT_SEND_NEW_FILE:
@@ -112,6 +113,9 @@ class LeftClient:
                 # self.logger.log_verbose("EventLoop: No event")
         self.logger.log_warning(f"Client {self.server_address} disposed, event loop stopped")
 
+    def dispatch_download(self, download_event: FileEvent, peer_address: str):
+        self.download_dispatcher.execute(self.download, args=(download_event, peer_address))
+
     def on_download_success(self, file_path):
         self.file_table[file_path].is_remote = False
 
@@ -123,12 +127,9 @@ class LeftClient:
         client = FileTransferClient(peer_address, self.file_server_port, download_event.file_info.file_path,
                                     success_callback=self.on_download_success,
                                     fail_callback=self.on_download_fail)
-        self.downloaders[peer_address] = client
 
         self.file_table.add_file_to_file_table(download_event.file_info)
-
-        client.start()
-        # TODO: download complete callback
+        client.download()
 
     def dispose(self):
         if not self._is_disposed:
