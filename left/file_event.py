@@ -20,6 +20,27 @@ class FileEvent:
         self.event_id = event_id
         self.file_info = file_info
 
+    def __eq__(self, other):
+        if not isinstance(other, FileEvent):
+            return False
+        else:
+            return self.event_id == other.event_id and self.file_info == other.file_info
+
+    def __hash__(self):
+        return hash((self.event_id, self.file_info))
+
+    def serialize(self):
+        buf_stream = stream.new_empty_buffer_stream()
+        buf_stream.write(self.event_id)
+        buf_stream.write(self.file_info.serialize())
+        return buf_stream.buffer
+
+
+def deserialize_file_event_from_stream(io_stream: stream.IOStream) -> FileEvent:
+    event_id = io_stream.read(1)
+    f_info = file_info.deserialize_file_info_from_stream(io_stream)
+    return FileEvent(event_id, f_info)
+
 
 class FileEventList:
 

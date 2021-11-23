@@ -5,6 +5,7 @@
 import unittest
 from left.stream import BufferStream
 
+
 def assert_read_foobar(test_case: unittest.TestCase, buf_stream: BufferStream):
     test_case.assertEqual(b"f", buf_stream.read(1))
     test_case.assertEqual(b"o", buf_stream.read(1))
@@ -13,6 +14,7 @@ def assert_read_foobar(test_case: unittest.TestCase, buf_stream: BufferStream):
     test_case.assertEqual(b"a", buf_stream.read(1))
     test_case.assertEqual(b"r", buf_stream.read(1))
     test_case.assertEqual(b"", buf_stream.read(1))
+
 
 class MyTestCase(unittest.TestCase):
 
