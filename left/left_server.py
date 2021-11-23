@@ -56,3 +56,16 @@ class LeftServer:
 
         packet.data = notify_event_list.serialize()
         packet.write_bytes(self.sock_stream)
+
+    def handle_file_event(self, request: LeftPacket):
+        event = file_event.deserialize_file_event_from_stream(BufferStream(request.data))
+        if event.event_id == file_event.EVENT_UPDATE_MTIME:
+            pass
+            # TODO: update mtime
+        else:
+            self.logger.log_info(
+                f"Received event {event.event_id}: {event.file_info.file_path} from peer {self.peer_address}")
+            self.fire_event_callback(self.peer_address, event)
+
+        response = LeftPacket(OPCODE_SUCCESS)
+        response.write_bytes(self.sock_stream)

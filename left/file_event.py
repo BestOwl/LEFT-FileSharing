@@ -13,6 +13,15 @@ EVENT_SEND_MODIFIED_FILE = b"\xD3"
 EVENT_RECEIVE_MODIFIED_FILE = b"\xD4"
 EVENT_REMOVE_FILE = b"\xD5"
 
+_event_str_map = {
+    EVENT_UPDATE_MTIME: "@UpdateMtime",
+    EVENT_SEND_NEW_FILE: "@SendNewFile",
+    EVENT_RECEIVE_NEW_FILE: "@ReceiveNewFile",
+    EVENT_SEND_MODIFIED_FILE: "@SendModifiedFile",
+    EVENT_RECEIVE_MODIFIED_FILE: "@ReceiveModifiedFile",
+    EVENT_REMOVE_FILE: "@RemoveFile"
+}
+
 
 class FileEvent:
 
@@ -28,6 +37,10 @@ class FileEvent:
 
     def __hash__(self):
         return hash((self.event_id, self.file_info))
+
+    def __str__(self):
+        return f"{_event_str_map[self.event_id]} {self.file_info.file_path} {self.file_info.last_modified_time} " \
+               f"{self.file_info.hash_md5}"
 
     def serialize(self):
         buf_stream = stream.new_empty_buffer_stream()
