@@ -16,25 +16,39 @@ class LeftServer:
     """
 
     def __init__(self, client_socket, client_socket_stream: IOStream, peer_address: str, file_table: FileTable,
-                 fire_event_callback):
+                 fire_event_callback, peer_down_callback):
         self.client_socket = client_socket
         self.sock_stream = client_socket_stream
         self.peer_address = peer_address
         self.file_table = file_table
         self.fire_event_callback = fire_event_callback
+        self.peer_down_callback = peer_down_callback
         self.logger = Logger("LeftServer")
+        self._is_dispose = False
+
+    def __del__(self):
+        self.dispose()
 
     def start(self):
         while True:
+            if self._is_dispose:
+                self.logger.log_warning("server is closing")
+                break
+
             self.logger.log_verbose("read_packet_from_stream call")
             packet = read_packet_from_stream(self.sock_stream)
             self.logger.log_verbose("read_packet_from_stream return")
+            if packet is None:
+                self.logger.log_warning(f"Peer {self.peer_address} disconnected")
+                break
             if packet.opcode == OPCODE_SYNC_FILE_TABLE:
                 self.handle_sync_file_table(packet)
             elif packet.opcode == OPCODE_FILE_EVENT:
                 self.handle_file_event(packet)
             else:
                 self.logger.log_warning(f"Not support opcode {packet.opcode}")
+        self.logger.log_warning("server has been stopped")
+        self.peer_down_callback(self.peer_address)
 
     def handle_sync_file_table(self, request: LeftPacket):
         remote_ft = deserialize_file_table(request.data)
@@ -69,3 +83,6 @@ class LeftServer:
 
         response = LeftPacket(OPCODE_SUCCESS)
         response.write_bytes(self.sock_stream)
+
+    def dispose(self):
+        self._is_dispose = True

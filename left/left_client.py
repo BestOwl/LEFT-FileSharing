@@ -28,7 +28,7 @@ class LeftClient:
         self.file_server_port = file_server_port
         self.file_table = file_table
         self.sock_connected = False
-        self.is_disposed = False
+        self._is_disposed = False
         self.event_queue = ConcurrentQueue()
         self.thread_event_loop = None
         self.sock_stream = None
@@ -40,7 +40,7 @@ class LeftClient:
         self.dispose()
 
     def connect(self, initiate_file_table_sync=True):
-        assert not self.is_disposed
+        assert not self._is_disposed
 
         self.sock = socket(AF_INET, SOCK_STREAM)
         self.sock.settimeout(10)
@@ -88,12 +88,12 @@ class LeftClient:
         self.event_queue.push(event)
 
     def event_loop(self):
-        while not self.is_disposed:
+        while not self._is_disposed:
             event: FileEvent = self.event_queue.pop()
             if event is not None:
-                self.logger.log_debug(f"Dequeue event: {event.event_id} {event.file_info.file_path}")
+                self.logger.log_debug(f"Dequeue event: {event}")
                 if event.event_id == EVENT_RECEIVE_NEW_FILE or event.event_id == EVENT_RECEIVE_MODIFIED_FILE:
-                    self.download(event.file_info.file_path, self.server_address)
+                    self.download(event, self.server_address)
                 else:
                     packet = LeftPacket(OPCODE_FILE_EVENT)
                     if event.event_id == EVENT_SEND_NEW_FILE:
@@ -110,17 +110,34 @@ class LeftClient:
                         # TODO: non-successful file event
             # else:
                 # self.logger.log_verbose("EventLoop: No event")
-        self.logger.log_warning("Client disposed, event loop stopped")
+        self.logger.log_warning(f"Client {self.server_address} disposed, event loop stopped")
 
-    def download(self, file_path: str, peer_address: str):
-        client = FileTransferClient(peer_address, self.file_server_port, file_path)
+    def on_download_success(self, file_path):
+        self.file_table[file_path].is_remote = False
+
+    def on_download_fail(self, file_path):
+        self.file_table.delete_from_file_table(file_path)
+
+    def download(self, download_event: FileEvent, peer_address: str):
+        download_event.file_info.is_remote = True
+        client = FileTransferClient(peer_address, self.file_server_port, download_event.file_info.file_path,
+                                    success_callback=self.on_download_success,
+                                    fail_callback=self.on_download_fail)
         self.downloaders[peer_address] = client
+
+        self.file_table.add_file_to_file_table(download_event.file_info)
+
         client.start()
         # TODO: download complete callback
 
     def dispose(self):
-        if self.sock is not None:
-            if self.sock_connected:
-                self.sock.shutdown(SHUT_RDWR)
-            self.sock.close()
-        self.is_disposed = True
+        if not self._is_disposed:
+            self.logger.log_verbose("Enter dispose()")
+            if self.sock is not None:
+                self.logger.log_verbose("Closing socket")
+                # if self.sock_connected:
+                #     self.logger.log_verbose("Socket is connected, shutdown call")
+                #     self.sock.shutdown(SHUT_RDWR)
+                #     self.logger.log_verbose("shutdown return")
+                self.sock.close()
+            self._is_disposed = True

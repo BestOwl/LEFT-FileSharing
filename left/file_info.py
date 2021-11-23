@@ -11,10 +11,13 @@ def get_normalized_file_path(path: str):
 
 class FileInfo:
 
-    def __init__(self, file_path: str, last_modified_time: int, hash_md5: str):
+    def __init__(self, file_path: str, last_modified_time: int, hash_md5: str, is_remote=False):
         self.file_path = get_normalized_file_path(file_path)
         self.last_modified_time = last_modified_time
         self.hash_md5 = hash_md5
+
+        # Represent a file on remote/peer. It will be changed to False after the download is complete
+        self.is_remote = is_remote
 
     def __eq__(self, other):
         if not isinstance(other, FileInfo):

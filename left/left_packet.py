@@ -40,8 +40,16 @@ class LeftPacket:
         io_stream.write(buf_stream.buffer)
 
 
-def read_packet_from_stream(stream: IOStream) -> LeftPacket:
+def read_packet_from_stream(stream: IOStream):
+    """
+    Read LEFT packet from stream
+    :param stream:
+    :return: LeftPacket packet, return None if the underlying connection is closed
+    """
     opcode = stream.read(1)
+    if opcode == b"":
+        return None
+
     packet = None
     if OPCODE_CONNECT <= opcode <= OPCODE_FILE_EVENT or OPCODE_SUCCESS <= opcode <= OPCODE_CONTINUE \
             or OPCODE_NOT_MODIFIED <= opcode <= OPCODE_NOT_FOUND:

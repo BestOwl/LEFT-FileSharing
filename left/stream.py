@@ -107,9 +107,12 @@ class BufferStream(IOStream):
         self.read_pos = 0
 
     def read(self, size: int) -> bytes:
-        if self.read_pos + size <= self.buf_len:
+        if self.read_pos < self.buf_len:
+            actual_read_size = size
+            if self.read_pos + size > self.buf_len:
+                actual_read_size = self.buf_len - self.read_pos
             ret = self.buffer[self.read_pos:self.read_pos + size]
-            self.read_pos += size
+            self.read_pos += actual_read_size
             return ret
         else:
             return b""
@@ -117,6 +120,18 @@ class BufferStream(IOStream):
     def write(self, buffer: bytes):
         self.buffer += buffer
         self.buf_len += len(buffer)
+
+
+class FileStream(IOStream):
+
+    def __init__(self, file_io):
+        self.file_io = file_io
+
+    def read(self, size: int) -> bytes:
+        return self.file_io.read(size)
+
+    def write(self, buffer: bytes):
+        self.file_io.write(buffer)
 
 
 def new_empty_buffer_stream() -> BufferStream:

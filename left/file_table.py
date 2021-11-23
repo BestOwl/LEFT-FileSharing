@@ -58,6 +58,10 @@ class FileTable:
         self.lock.release()
         return file_info
 
+    def delete_from_file_table(self, file_path):
+        with self.lock:
+            del self.file_dict[file_path]
+
     def delete_range_from_file_table(self, delete_list: []):
         self.lock.acquire()
         for path in delete_list:

@@ -43,6 +43,7 @@ class LeftManager:
 
     def start_delegate_server(self) -> threading.Thread:
         self.server_socket: socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind(("", self.left_server_port))
         self.server_socket.listen(10)
         self.logger.log_info(f"LEFT server started on port {self.left_server_port}")
@@ -83,7 +84,7 @@ class LeftManager:
                 client_socket.settimeout(None)  # TODO: safe?
                 smi.handshaking.set()
                 smi.start(LeftServer(client_socket, client_socket_stream, address_port[0], self.file_table,
-                                     self.fire_client_event))
+                                     self.fire_client_event, self.peer_down))
                 self.logger.log_verbose("smi set")
 
                 self.logger.log_verbose("is_self_client_connected_to_peer call")
@@ -174,6 +175,16 @@ class LeftManager:
         else:
             return False
 
+    def peer_down(self, peer_address):
+        with self.server_handler_lock:
+            with self.client_lock:
+                self.server_handlers[peer_address].server.dispose()
+                del self.server_handlers[peer_address]
+                self.logger.log_verbose("LeftClient dispose() call")
+                self.clients[peer_address].client.dispose()
+                self.logger.log_verbose("LeftClient dispose() return")
+                del self.clients[peer_address]
+
     def fire_client_event(self, address: str, event: FileEvent):
         self.logger.log_verbose(f"Event arrive: {event}")
         if self.clients[address].connecting.is_set():
@@ -196,6 +207,9 @@ class ClientManagementInterface:
         self.connecting = threading.Event()
         self.event_holding_list = []
 
+    def __del__(self):
+        self.client.dispose()
+
 
 class ServerManagementInterface:
 
@@ -205,6 +219,9 @@ class ServerManagementInterface:
         self.handshaking = threading.Event()
         self.server = None
         self.server_thread = None
+
+    def __del__(self):
+        self.server.dispose()
 
     def start(self, server: LeftServer):
         self.server = server

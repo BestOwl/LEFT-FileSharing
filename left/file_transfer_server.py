@@ -7,8 +7,9 @@ from socket import *
 import struct
 
 from file_table import FileTable
+from file_provider import FileProvider
 from left_error import LeftError
-from stream import SocketStream
+from stream import SocketStream, FileStream
 from left_packet import read_packet_from_stream, LeftPacket
 from left_constants import *
 from file_helper import get_file_size
@@ -22,6 +23,7 @@ class FileTransferServer:
         self.file_table = file_table
 
         self.server_socket = socket(AF_INET, SOCK_STREAM)
+        self.server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self.server_socket.bind(("", self.server_port))
         self.server_socket.listen(5)
         self.handlers = {}
@@ -65,18 +67,15 @@ class FileTransferServerHandler:
             response.target = struct.pack("!I", get_file_size(file_path))
             response.write_bytes(self.sock_stream)
 
-            with open(file_path, "rb") as f:
-                while True:
-                    buf = f.read(BUF_SIZE)
-                    if buf == b"":
-                        break
-                    else:
-                        self.sock.send(buf)
+            with open(file_path, "rb") as fd:
+                provider = FileProvider(FileStream(fd), self.sock_stream)
+                provider.provide_file()
 
             self.logger.log_info(f"File transmission {file_path} completed")
         except LeftError as e:
             self.logger.log_error(f"Illegal file transfer {self.address_port}: {e.message}")
-        self.sock.close()
+        finally:
+            self.sock.close()
 
     def handshake(self) -> str:
         packet = read_packet_from_stream(self.sock_stream)
