@@ -12,12 +12,20 @@ class ConcurrentQueue:
 
     def __init__(self):
         self.list = []
+        self.lock = threading.Lock()
 
     def push(self, item):
-        self.list.append(item)
+        with self.lock:
+            self.list.append(item)
+
+    def push_range(self, items):
+        with self.lock:
+            for i in items:
+                self.list.append(i)
 
     def pop(self):
         ret = None
-        if len(self.list) > 0:
-            ret = self.list.pop(0)
-        return ret
+        with self.lock:
+            if len(self.list) > 0:
+                ret = self.list.pop(0)
+            return ret

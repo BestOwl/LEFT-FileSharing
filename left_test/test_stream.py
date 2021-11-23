@@ -34,7 +34,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_read_string_null_terminated(self):
         buf_stream = BufferStream(b"LEFT\x00")
-        self.assertEqual("LEFT", buf_stream.read_string_null_terminated())
+        self.assertEqual("LEFT", buf_stream.read_string()[0])
 
 
 if __name__ == '__main__':

@@ -5,9 +5,9 @@
 import socket
 import threading
 
+from debug_tool import debug_print
 from file_table import FileTable
 from file_event import FileEvent
-from left.debug_tool import debug_print
 from left_constants import OPCODE_CONNECT, OPCODE_SUCCESS
 from stream import SocketStream
 from left_error import LeftError
@@ -18,9 +18,10 @@ from left_packet import LeftPacket, read_packet_from_stream
 
 class LeftManager:
 
-    def __init__(self, file_table: FileTable, left_server_port: int = 25560):
+    def __init__(self, file_table: FileTable, left_server_port: int, file_server_port: int):
         self.file_table = file_table
         self.left_server_port = left_server_port
+        self.file_server_port = file_server_port
 
         # Client state dictionary
         # Key: server_address
@@ -44,8 +45,7 @@ class LeftManager:
         self.server_socket.listen(10)
         print(f"LEFT server started on port {self.left_server_port}")
 
-        self.thread_delegate_server = threading.Thread(target=self.delegate_server_accept_loop)
-        self.thread_delegate_server.setName("DelegateServer")
+        self.thread_delegate_server = threading.Thread(name="DelegateServer", target=self.delegate_server_accept_loop)
         self.thread_delegate_server.start()
         return self.thread_delegate_server
 
@@ -74,7 +74,8 @@ class LeftManager:
                 packet = read_packet_from_stream(client_socket_stream)
                 if packet.opcode != OPCODE_CONNECT or packet.target is None or packet.target != b"LEFT":
                     raise LeftError("Protocol error: first packet must be a CONNECT packet")
-                client_socket_stream.write(LeftPacket(OPCODE_SUCCESS).to_bytes())
+                packet = LeftPacket(OPCODE_SUCCESS)
+                packet.write_bytes(client_socket_stream)
 
                 debug_print("handshake success")
                 client_socket.settimeout(None)  # TODO: safe?
@@ -106,8 +107,9 @@ class LeftManager:
         Try to connect to peer's LeftServer
         :raise LeftError if unable to connect to peer
         """
-        client = LeftClient(peer_address, self.left_server_port, self.file_table, self.is_self_server_accepted_peer)
-        cmi = ClientManagementInfo(peer_address, client)
+        client = LeftClient(peer_address, self.left_server_port, self.file_server_port, self.file_table,
+                            self.is_self_server_accepted_peer)
+        cmi = ClientManagementInterface(peer_address, client)
 
         debug_print("client_lock lock")
         with self.client_lock:
@@ -119,6 +121,10 @@ class LeftManager:
             client.connect()
             debug_print("client connect return")
             cmi.connecting.set()
+            debug_print("clear event holding list")
+            for e in cmi.event_holding_list:
+                cmi.client.event_queue.push(e)
+            cmi.event_holding_list = None
         except socket.error:
             client.dispose()
             debug_print("client_lock lock")
@@ -127,7 +133,6 @@ class LeftManager:
             debug_print("client_lock unlock")
             cmi.connecting.set()  # set() must be called AFTER del self.clients[address]
             raise
-
 
     def is_self_client_connected_to_peer(self, peer_address: str):
         cmi = None
@@ -168,15 +173,26 @@ class LeftManager:
             return False
 
     def fire_client_event(self, address: str, event: FileEvent):
-        self.clients[address].client.fire_event(event)
+        debug_print(f"Event arrive: {event}")
+        if self.clients[address].connecting.is_set():
+            debug_print(f"Push event to client's event queue")
+            self.clients[address].client.fire_event(event)
+        else:
+            debug_print(f"Client on hold, push event to holding list")
+            self.clients[address].event_holding_list.append(event)
+
+    def broadcast_event(self, event: FileEvent):
+        for address in self.clients:
+            self.fire_client_event(address, event)
 
 
-class ClientManagementInfo:
+class ClientManagementInterface:
 
     def __init__(self, address: str, client: LeftClient):
         self.address = address
         self.client = client
         self.connecting = threading.Event()
+        self.event_holding_list = []
 
 
 class ServerManagementInterface:

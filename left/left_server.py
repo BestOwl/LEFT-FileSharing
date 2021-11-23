@@ -5,6 +5,7 @@
 
 from file_table import FileTable, deserialize as deserialize_file_table
 from left_packet import *
+import file_event
 
 
 class LeftServer:
@@ -12,7 +13,7 @@ class LeftServer:
     Large Efficient File Transport (LEFT) server
     """
 
-    def __init__(self, client_socket, client_socket_stream, peer_address: str, file_table: FileTable,
+    def __init__(self, client_socket, client_socket_stream: IOStream, peer_address: str, file_table: FileTable,
                  fire_event_callback):
         self.client_socket = client_socket
         self.sock_stream = client_socket_stream
@@ -29,6 +30,20 @@ class LeftServer:
     def handle_sync_file_table(self, request: LeftPacket):
         remote_ft = deserialize_file_table(request.data)
         file_events = self.file_table.diff(remote_ft)
-        for e in file_events:
-            self.fire_event_callback(self.peer_address, e)
+        packet = LeftPacket(OPCODE_SUCCESS)
+        notify_event_list = file_event.FileEventList()
 
+        for e in file_events:
+            if e.event_id == file_event.EVENT_UPDATE_MTIME:
+                notify_event_list.append(e)
+            elif e.event_id == file_event.EVENT_SEND_NEW_FILE:
+                e.event_id = file_event.EVENT_RECEIVE_NEW_FILE
+                notify_event_list.append(e)
+            elif e.event_id == file_event.EVENT_SEND_MODIFIED_FILE:
+                e.event_id = file_event.EVENT_RECEIVE_MODIFIED_FILE
+                notify_event_list.append(e)
+            else:
+                self.fire_event_callback(self.peer_address, e)
+
+        packet.data = notify_event_list.serialize()
+        packet.write_bytes(self.sock_stream)

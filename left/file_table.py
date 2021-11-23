@@ -121,39 +121,15 @@ class FileTableDeserializeError(Exception):
 
 
 def deserialize(buffer: bytes) -> FileTable:
-    remote_ft = FileTable("../run/share/share", auto_init_table=False)
+    remote_ft = FileTable("share", auto_init_table=False)
     buf_stream = BufferStream(buffer)
 
     while True:
-        file_path = buf_stream.read_string_null_terminated()
+        file_path, _ = buf_stream.read_string()
         if file_path is None:
             break
         mtime = unpack("!Q", buf_stream.read(8))[0]  # size of long long
-        hash_md5 = buf_stream.read_string_null_terminated()
+        hash_md5, _ = buf_stream.read_string()
         remote_ft.add_file_to_file_table(FileInfo(file_path, mtime, hash_md5))
-
-    # pos = 0
-    #
-    # while pos < sz_buffer:
-    #     start_pos = pos
-    #     while True:
-    #         if buffer[pos] == 0:
-    #             break
-    #         pos += 1
-    #     file_path = str(unpack_from(f"{pos - start_pos}s", buffer, start_pos)[0], "utf-8")
-    #     pos += 1
-    #
-    #     mtime = unpack_from("!Q", buffer, pos)[0]
-    #     pos += 4
-    #
-    #     start_pos = pos
-    #     while True:
-    #         if buffer[pos] == 0:
-    #             break
-    #         pos += 1
-    #     hash_md5 = str(unpack_from(f"{pos - start_pos}s", buffer, start_pos)[0], "utf-8")
-    #     pos += 1
-    #
-    #     remote_ft.add_file_to_file_table(FileInfo(file_path, mtime, hash_md5))
 
     return remote_ft

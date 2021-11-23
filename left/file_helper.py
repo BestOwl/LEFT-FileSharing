@@ -12,6 +12,7 @@ def get_file_last_modified_time(dir_entry: os.DirEntry) -> int:
     """
     :param dir_entry: os.DirEntry object of a file
     :return: Last modified time of a specific file, in nano seconds
+    If the file is currently unreadable in this moment, return None
     """
     return dir_entry.stat().st_mtime_ns
 
@@ -24,14 +25,21 @@ def get_file_hash_md5(path: str):
 
     md5 = hashlib.md5()
 
-    with open(path, mode="rb") as f:
-        while True:
-            data = f.read(BUF_SIZE)
-            if not data:
-                break
-            md5.update(data)
+    if os.access(path, mode=os.R_OK):
+        with open(path, mode="rb") as f:
+            while True:
+                data = f.read(BUF_SIZE)
+                if not data:
+                    break
+                md5.update(data)
 
-    return md5.hexdigest()
+        return md5.hexdigest()
+    else:
+        return
+
+
+def get_file_size(path: str):
+    return os.path.getsize(path)
 
 
 def scan_path_tree(path: str):

@@ -7,7 +7,9 @@ import socket
 import threading
 
 from file_table import FileTable
-from concurrent_queue import ConcurrentQueue
+from file_transfer_server import FileTransferServer
+from debug_tool import debug_print
+from file_event import FileEvent
 from left_error import LeftError
 from watch_dog import WatchDog
 from left_manager import LeftManager
@@ -21,13 +23,17 @@ def main():
     print(args.ip)
 
     file_table = FileTable("share")
-    file_event_queue = ConcurrentQueue()
-    watchdog = WatchDog(file_table, file_event_queue)
+    manager = LeftManager(file_table, left_server_port=25560, file_server_port=25561)
+    watchdog = WatchDog(file_table, event_callback=manager.broadcast_event)
 
     thread_watch_dog = threading.Thread(name="WatchDog", target=start_watch_dog, args=[watchdog])
     thread_watch_dog.start()
 
-    manager = LeftManager(file_table)
+    file_transfer_server = FileTransferServer(25561, file_table)
+    thread_file_transfer_server = threading.Thread(name="FileTransferListenServer",
+                                                   target=start_file_transfer_server,
+                                                   args=[file_transfer_server])
+    thread_file_transfer_server.start()
     thread_manager = manager.start_delegate_server()
 
     try:
@@ -42,6 +48,10 @@ def main():
 
 def start_watch_dog(watchdog: WatchDog):
     watchdog.start()
+
+
+def start_file_transfer_server(file_transfer_server: FileTransferServer):
+    file_transfer_server.start()
 
 
 if __name__ == "__main__":
