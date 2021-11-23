@@ -8,11 +8,13 @@ import threading
 
 from file_table import FileTable
 from file_transfer_server import FileTransferServer
-from debug_tool import debug_print
-from file_event import FileEvent
+from logger import *
 from left_error import LeftError
 from watch_dog import WatchDog
 from left_manager import LeftManager
+
+
+_logger = Logger("Main")
 
 
 def main():
@@ -20,7 +22,7 @@ def main():
     parser.add_argument("--ip", type=str, help="peer IP address", required=True)
     args = parser.parse_args()
 
-    print(args.ip)
+    _logger.log_info(args.ip)
 
     file_table = FileTable("share")
     manager = LeftManager(file_table, left_server_port=25560, file_server_port=25561)
@@ -39,9 +41,9 @@ def main():
     try:
         manager.try_client_connect(args.ip)
     except LeftError as e:
-        print(f"Illegal peer detected, force disconnect: {e.message}")
+        _logger.log_warning(f"Illegal peer detected, force disconnect: {e.message}")
     except socket.error as e:
-        print(f"Failed to connect to peer {args.ip}: {e}")
+        _logger.log_warning(f"Failed to connect to peer {args.ip}: {e}")
 
     thread_manager.join()
 

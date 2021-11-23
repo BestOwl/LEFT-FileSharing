@@ -43,7 +43,8 @@ class LeftPacket:
 def read_packet_from_stream(stream: IOStream) -> LeftPacket:
     opcode = stream.read(1)
     packet = None
-    if OPCODE_CONNECT <= opcode <= OPCODE_DOWNLOAD_FILE or opcode == OPCODE_SUCCESS or opcode == OPCODE_NOT_FOUND:
+    if OPCODE_CONNECT <= opcode <= OPCODE_FILE_EVENT or OPCODE_SUCCESS <= opcode <= OPCODE_CONTINUE \
+            or OPCODE_NOT_MODIFIED <= opcode <= OPCODE_NOT_FOUND:
         packet = LeftPacket(opcode)
 
     if packet is None:

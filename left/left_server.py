@@ -4,8 +4,10 @@
 
 
 from file_table import FileTable, deserialize as deserialize_file_table
+from stream import BufferStream
 from left_packet import *
 import file_event
+from logger import Logger
 
 
 class LeftServer:
@@ -20,12 +22,19 @@ class LeftServer:
         self.peer_address = peer_address
         self.file_table = file_table
         self.fire_event_callback = fire_event_callback
+        self.logger = Logger("LeftServer")
 
     def start(self):
         while True:
+            self.logger.log_verbose("read_packet_from_stream call")
             packet = read_packet_from_stream(self.sock_stream)
+            self.logger.log_verbose("read_packet_from_stream return")
             if packet.opcode == OPCODE_SYNC_FILE_TABLE:
                 self.handle_sync_file_table(packet)
+            elif packet.opcode == OPCODE_FILE_EVENT:
+                self.handle_file_event(packet)
+            else:
+                self.logger.log_warning(f"Not support opcode {packet.opcode}")
 
     def handle_sync_file_table(self, request: LeftPacket):
         remote_ft = deserialize_file_table(request.data)

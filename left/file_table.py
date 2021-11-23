@@ -15,7 +15,12 @@ class FileTable:
 
     def __init__(self, root_path: str, auto_init_table: bool = True):
         self.root_path = root_path
+
+        # FileInfo dictionary
+        # Key: normalized file path
+        # Value: FileInfo object
         self.file_dict: dict = {}
+
         self.lock = threading.Lock()
 
         if auto_init_table:

@@ -11,6 +11,7 @@ from concurrent_queue import ConcurrentQueue
 import file_helper
 from file_event import *
 from file_info import get_normalized_file_path
+from logger import Logger
 
 
 class WatchDog:
@@ -19,6 +20,11 @@ class WatchDog:
         self.stop: bool = False
         self.file_table = file_table
         self.event_callback = event_callback
+        self.logger = Logger("WatchDog")
+
+    def dispatch_event(self, event: FileEvent):
+        self.logger.log_debug(f"Dispatch watchdog event: {event}")
+        self.event_callback(event)
 
     def start(self):
         while not self.stop:
@@ -26,7 +32,7 @@ class WatchDog:
                 path = get_normalized_file_path(dir_entry.path)
                 if path not in self.file_table:
                     file_info = self.file_table.add_file_to_file_table_by_dir_entry(dir_entry)
-                    self.event_callback(FileEvent(EVENT_SEND_NEW_FILE, file_info))
+                    self.dispatch_event(FileEvent(EVENT_SEND_NEW_FILE, file_info))
                 else:
                     actual_mtime = file_helper.get_file_last_modified_time(dir_entry)
                     self._compare_file_by_mtime_md5(path, actual_mtime)
@@ -36,7 +42,7 @@ class WatchDog:
             for path in self.file_table:
                 if not os.path.exists(path):
                     delete_list.append(path)
-                    self.event_callback(FileEvent(EVENT_REMOVE_FILE, self.file_table[path]))
+                    self.dispatch_event(FileEvent(EVENT_REMOVE_FILE, self.file_table[path]))
             self.file_table.delete_range_from_file_table(delete_list)
             time.sleep(0.05)
 
@@ -58,7 +64,7 @@ class WatchDog:
             # operation, so the actual_md5 might be None if this is the case
             if actual_md5 is not None:
                 if self.file_table[path].hash_md5 != actual_md5:
-                    self.event_callback(FileEvent(EVENT_SEND_MODIFIED_FILE, self.file_table[path]))
+                    self.dispatch_event(FileEvent(EVENT_SEND_MODIFIED_FILE, self.file_table[path]))
                     self.file_table.update_file_table_md5(path, actual_md5)
                 else:
                     self.file_table.update_file_table_mtime(path, actual_mtime)

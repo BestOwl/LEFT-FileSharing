@@ -1,10 +1,11 @@
 # This file is part of Large Efficient Flexible and Trusty (LEFT) File Sharing
 # Author: Hao Su <hao.su19@student.xjtlu.edu.cn>
 # Copyright (c) 2021 Hao Su
+
 import struct
 from socket import *
 
-from debug_tool import debug_print
+from logger import Logger
 from left_constants import *
 from left_packet import LeftPacket, read_packet_from_stream
 from stream import SocketStream
@@ -22,6 +23,7 @@ class FileTransferClient:
         self.sock = None
         self.sock_stream = None
         self.thread_download = threading.Thread(name=f"Download-{file_path}", target=self.download)
+        self.logger = Logger("FileTransferClient")
 
     def start(self):
         self.thread_download.start()
@@ -31,7 +33,7 @@ class FileTransferClient:
         self.sock.connect((self.server_address, self.server_port))
         self.sock_stream = SocketStream(self.sock)
 
-        print(f"Downloader> {self.file_path}: Connected to download service")
+        self.logger.log_info(f"{self.file_path}: Connected to download service")
 
         request = LeftPacket(OPCODE_DOWNLOAD_FILE)
         request.name = self.file_path
@@ -41,10 +43,10 @@ class FileTransferClient:
 
         response = read_packet_from_stream(self.sock_stream)
         if response.opcode != OPCODE_SUCCESS:
-            print(f"Download failed: opcode {response.opcode}")
+            self.logger.log_error(f"{self.file_path}: Download failed with opcode {response.opcode}")
             return
 
-        print(f"Downloader> {self.file_path}: download started")
+        self.logger.log_info(f"{self.file_path}: download started")
         # target is a 4-byte header, here we borrow it to store the total file length
         file_total_len = struct.unpack("!I", response.target)[0]
         total_receive_sz = 0
@@ -55,11 +57,11 @@ class FileTransferClient:
                 receive_sz = self.sock.recv_into(buf, BUF_SIZE)
                 total_receive_sz += receive_sz
 
-                print(f"Downloader> {self.file_path}: {total_receive_sz} / {file_total_len} bytes")
+                self.logger.log_info(f"{self.file_path}: {total_receive_sz} / {file_total_len} bytes")
 
                 if 0 < receive_sz <= BUF_SIZE:
                     f.write(buf)
                 else:
                     break
 
-        print(f"Downloader> {self.file_path}: download completed")
+        self.logger.log_info(f"{self.file_path}: download completed")

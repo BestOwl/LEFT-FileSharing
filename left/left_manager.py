@@ -5,7 +5,7 @@
 import socket
 import threading
 
-from debug_tool import debug_print
+from logger import Logger
 from file_table import FileTable
 from file_event import FileEvent
 from left_constants import OPCODE_CONNECT, OPCODE_SUCCESS
@@ -39,11 +39,13 @@ class LeftManager:
         self.server_socket = None
         self.thread_delegate_server = None
 
+        self.logger = Logger("LeftManager")
+
     def start_delegate_server(self) -> threading.Thread:
         self.server_socket: socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind(("", self.left_server_port))
         self.server_socket.listen(10)
-        print(f"LEFT server started on port {self.left_server_port}")
+        self.logger.log_info(f"LEFT server started on port {self.left_server_port}")
 
         self.thread_delegate_server = threading.Thread(name="DelegateServer", target=self.delegate_server_accept_loop)
         self.thread_delegate_server.start()
@@ -53,22 +55,22 @@ class LeftManager:
         while True:
             client_socket, address_port = self.server_socket.accept()
             client_socket_stream = SocketStream(client_socket)
-            print(f"Peer client {address_port} socket connected")
+            self.logger.log_info(f"Peer client {address_port} socket connected")
 
             if address_port[0] in self.server_handlers:
-                print(f"Peer {address_port[0]} already connected with this server, reject another CONNECT attempt")
+                self.logger.log_info(f"Peer {address_port[0]} already connected with this server, reject another CONNECT attempt")
                 client_socket.close()
                 continue
             smi = ServerManagementInterface(address_port[0])
-            debug_print("server_handler_lock lock")
+            self.logger.log_verbose("server_handler_lock lock")
             with self.server_handler_lock:
                 self.server_handlers[address_port[0]] = smi
-            debug_print("server_handler_lock unlock")
+            self.logger.log_verbose("server_handler_lock unlock")
 
             # TODO: thread pool to handle LEFT handshake
             try:
                 # LEFT handshake
-                debug_print("handshaking")
+                self.logger.log_verbose("handshaking")
                 client_socket.settimeout(5)
 
                 packet = read_packet_from_stream(client_socket_stream)
@@ -77,30 +79,30 @@ class LeftManager:
                 packet = LeftPacket(OPCODE_SUCCESS)
                 packet.write_bytes(client_socket_stream)
 
-                debug_print("handshake success")
+                self.logger.log_verbose("handshake success")
                 client_socket.settimeout(None)  # TODO: safe?
                 smi.handshaking.set()
                 smi.start(LeftServer(client_socket, client_socket_stream, address_port[0], self.file_table,
                                      self.fire_client_event))
-                debug_print("smi set")
+                self.logger.log_verbose("smi set")
 
-                debug_print("is_self_client_connected_to_peer call")
+                self.logger.log_verbose("is_self_client_connected_to_peer call")
                 if not self.is_self_client_connected_to_peer(address_port[0]):
                     self.try_client_connect(address_port[0])
-                debug_print("is_self_client_connected_to_peer return")
+                self.logger.log_verbose("is_self_client_connected_to_peer return")
 
-                print(f"Service Level Connection established with peer {address_port}")
+                self.logger.log_info(f"Service Level Connection established with peer {address_port}")
 
             except LeftError as e:
-                print(f"Client {address_port}: {e.message}")
+                self.logger.log_error(f"Client {address_port}: {e.message}")
                 client_socket.close()
-                debug_print("server_handler_lock lock")
+                self.logger.log_verbose("server_handler_lock lock")
                 with self.server_handler_lock:
                     del self.server_handlers[address_port[0]]
-                debug_print("server_handler_lock unlock")
-                debug_print("smi set")
+                self.logger.log_verbose("server_handler_lock unlock")
+                self.logger.log_verbose("smi set")
                 smi.handshaking.set()
-                print(f"Client {address_port}: force disconnected")
+                self.logger.log_error(f"Client {address_port}: force disconnected")
 
     def try_client_connect(self, peer_address: str):
         """
@@ -111,74 +113,74 @@ class LeftManager:
                             self.is_self_server_accepted_peer)
         cmi = ClientManagementInterface(peer_address, client)
 
-        debug_print("client_lock lock")
+        self.logger.log_verbose("client_lock lock")
         with self.client_lock:
             self.clients[peer_address] = cmi
-        debug_print("client_lock unlock")
+        self.logger.log_verbose("client_lock unlock")
 
         try:
-            debug_print("client connect call")
+            self.logger.log_verbose("client connect call")
             client.connect()
-            debug_print("client connect return")
+            self.logger.log_verbose("client connect return")
             cmi.connecting.set()
-            debug_print("clear event holding list")
+            self.logger.log_verbose("clear event holding list")
             for e in cmi.event_holding_list:
                 cmi.client.event_queue.push(e)
             cmi.event_holding_list = None
         except socket.error:
             client.dispose()
-            debug_print("client_lock lock")
+            self.logger.log_verbose("client_lock lock")
             with self.client_lock:
                 del self.clients[peer_address]
-            debug_print("client_lock unlock")
+            self.logger.log_verbose("client_lock unlock")
             cmi.connecting.set()  # set() must be called AFTER del self.clients[address]
             raise
 
     def is_self_client_connected_to_peer(self, peer_address: str):
         cmi = None
-        debug_print("client_lock lock")
+        self.logger.log_verbose("client_lock lock")
         with self.client_lock:
             if peer_address in self.clients:
                 cmi = self.clients[peer_address]
-        debug_print("client_lock unlock")
+        self.logger.log_verbose("client_lock unlock")
 
         if cmi is not None:
-            debug_print("waiting previous connect attempt")
+            self.logger.log_verbose("waiting previous connect attempt")
             cmi.connecting.wait()
-            debug_print("finish previous connect attempt")
-            debug_print("client_lock lock")
+            self.logger.log_verbose("finish previous connect attempt")
+            self.logger.log_verbose("client_lock lock")
             with self.client_lock:
-                debug_print("client_lock unlock")
+                self.logger.log_verbose("client_lock unlock")
                 return cmi.address in self.clients
         else:
             return False
 
     def is_self_server_accepted_peer(self, peer_address: str):
         smi = None
-        debug_print("server_handler_lock lock")
+        self.logger.log_verbose("server_handler_lock lock")
         with self.server_handler_lock:
             if peer_address in self.server_handlers:
                 smi = self.server_handlers[peer_address]
-        debug_print("server_handler_lock unlock")
+        self.logger.log_verbose("server_handler_lock unlock")
 
         if smi is not None:
-            debug_print("waiting previous server handshake")
+            self.logger.log_verbose("waiting previous server handshake")
             smi.handshaking.wait()
-            debug_print("previous server handshake complete")
-            debug_print("server_handler_lock lock")
+            self.logger.log_verbose("previous server handshake complete")
+            self.logger.log_verbose("server_handler_lock lock")
             with self.server_handler_lock:
-                debug_print("server_handler_lock unlock")
+                self.logger.log_verbose("server_handler_lock unlock")
                 return smi.address in self.server_handlers
         else:
             return False
 
     def fire_client_event(self, address: str, event: FileEvent):
-        debug_print(f"Event arrive: {event}")
+        self.logger.log_verbose(f"Event arrive: {event}")
         if self.clients[address].connecting.is_set():
-            debug_print(f"Push event to client's event queue")
+            self.logger.log_verbose(f"Push event to client's event queue")
             self.clients[address].client.fire_event(event)
         else:
-            debug_print(f"Client on hold, push event to holding list")
+            self.logger.log_verbose(f"Client on hold, push event to holding list")
             self.clients[address].event_holding_list.append(event)
 
     def broadcast_event(self, event: FileEvent):
