@@ -2,8 +2,6 @@
 # Author: Hao Su <hao.su19@student.xjtlu.edu.cn>
 # Copyright (c) 2021 Hao Su
 
-import threading
-
 
 class ConcurrentQueue:
     """
