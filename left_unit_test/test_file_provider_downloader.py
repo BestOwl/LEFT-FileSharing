@@ -42,14 +42,16 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(in_mem_original_file_buffer, in_mem_write_file_stream.buffer)
 
     def test_downloader_download_real_file(self):
-        original_file = FileStream("dummy_files/test_file_provider_downloader_test_file.txt", "rb")
-        out_file = FileStream("dummy_files/test_file_provider_downloader_test_file.txt.out", "wb")
-        downloader = FileDownloader(out_file, original_file,
-                                    file_helper.get_file_size(
-                                        "dummy_files/test_file_provider_downloader_test_file.txt"), None)
-        downloader.download_file()
-        original_file.close()
-        out_file.close()
+        original_file_name = "dummy_files/test_file_provider_downloader_test_file.txt"
+        out_file_name = "dummy_files/test_file_provider_downloader_test_file.txt.out"
+
+        with open(original_file_name, "rb") as original_file, open(out_file_name, "wb") as out_file:
+            stream_original_file = FileStream(original_file)
+            stream_out_file = FileStream(out_file)
+            downloader = FileDownloader(stream_out_file, stream_original_file,
+                                        file_helper.get_file_size(
+                                            "dummy_files/test_file_provider_downloader_test_file.txt"), None)
+            downloader.download_file()
         self.assertEqual(file_helper.get_file_hash_md5("dummy_files/test_file_provider_downloader_test_file.txt"),
                          file_helper.get_file_hash_md5("dummy_files/test_file_provider_downloader_test_file.txt.out"))
 
