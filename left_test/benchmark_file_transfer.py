@@ -27,13 +27,13 @@ def start_file_server():
     server_sock.listen()
     client_sock, address_port = server_sock.accept()
 
-    with open("dummy_files/benchmark-500M.exe", "rb") as f:
+    with open("../share_dummy_files/benchmark-500M.exe", "rb") as f:
         provider = NaiveFileProvider(FileStream(f), SocketStream(client_sock))
         file_provider_benchmark(provider)
 
     time.sleep(1)
 
-    with open("dummy_files/benchmark-500M.exe", "rb") as f:
+    with open("../share_dummy_files/benchmark-500M.exe", "rb") as f:
         provider = QueuedFileProvider(FileStream(f), SocketStream(client_sock))
         file_provider_benchmark(provider)
 
@@ -41,16 +41,16 @@ def start_file_server():
 def start_file_client():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(("127.0.0.1", 30001))
-    with open("dummy_tmp/classic.out", "wb") as f:
+    with open("../share_dummy_tmp/classic.out", "wb") as f:
         downloader = NaiveFileDownloader(FileStream(f), SocketStream(sock),
-                                         os.path.getsize("dummy_files/benchmark-500M.exe"), None)
+                                         os.path.getsize("../share_dummy_files/benchmark-500M.exe"), None)
         file_downloader_benchmark(downloader)
 
     time.sleep(1)
 
-    with open("dummy_tmp/classic.out", "wb") as f:
+    with open("../share_dummy_tmp/classic.out", "wb") as f:
         downloader = QueuedFileDownloader(FileStream(f), SocketStream(sock),
-                                         os.path.getsize("dummy_files/benchmark-500M.exe"), None)
+                                          os.path.getsize("../share_dummy_files/benchmark-500M.exe"), None)
         file_downloader_benchmark(downloader)
 
 

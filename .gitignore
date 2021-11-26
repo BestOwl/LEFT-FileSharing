@@ -144,4 +144,6 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 run/
-left_test/dummy_tmp/
+share_dummy_tmp/
+share_dummy_files/3.ova
+share_dummy_files/benchmark-500M.exe
