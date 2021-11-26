@@ -36,7 +36,7 @@ class LeftPacket:
             buf_stream.write(self.data)
 
         io_stream.write(self.opcode)
-        io_stream.write_unsigned_short(buf_stream.buf_len + 3)
+        io_stream.write_unsigned_int(buf_stream.buf_len + 5)
         io_stream.write(buf_stream.buffer)
 
 
@@ -58,9 +58,9 @@ def read_packet_from_stream(stream: IOStream):
     if packet is None:
         raise LeftError(f"Illegal opcode {opcode}")
 
-    unread_packet_len = stream.read(2)
-    unread_packet_len = unpack("!H", unread_packet_len)[0]
-    unread_packet_len -= 3
+    unread_packet_len = stream.read(4)
+    unread_packet_len = unpack("!I", unread_packet_len)[0]
+    unread_packet_len -= 5
 
     while unread_packet_len > 0:
         header_id = stream.read(1)
