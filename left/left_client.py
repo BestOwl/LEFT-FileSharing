@@ -77,6 +77,8 @@ class LeftClient:
             event_list = deserialize_file_event_list_from_stream(BufferStream(packet.data))
             self.event_queue.push_range(event_list)
             self.logger.log_verbose("FileTable is sync")
+        else:
+            self.logger.log_verbose("Skipped file table sync")
 
         self.sock.settimeout(None)
         self.logger.log_verbose("Client EventLoop started")

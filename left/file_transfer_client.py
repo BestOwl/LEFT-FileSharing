@@ -55,7 +55,7 @@ class FileTransferClient:
             dir_path = os.path.dirname(self.file_path)
             if not os.path.exists(dir_path):
                 self.logger.log_verbose("File dir does not exist, mkdir first")
-                os.mkdir(dir_path)
+                os.makedirs(dir_path, exist_ok=True)
             with open(self.file_path, "wb") as f:
                 downloader = FileDownloader(FileStream(f), self.sock_stream, file_total_len, None)
                 downloader.download_file()

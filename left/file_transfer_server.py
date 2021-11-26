@@ -25,7 +25,7 @@ class FileTransferServer:
         self.server_socket = socket(AF_INET, SOCK_STREAM)
         self.server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self.server_socket.bind(("", self.server_port))
-        self.server_socket.listen(5)
+        self.server_socket.listen(50)
         self.handlers = {}
         self.logger = Logger("FileTransferServer")
 
