@@ -46,6 +46,7 @@ def scan_path_tree(path: str):
     """
     Recursively yield DirEntry objects for given path
     """
+    # TODO: skip hidden file and folder
     for dir_entry in os.scandir(path):
         if dir_entry.is_dir(follow_symlinks=False):
             yield from scan_path_tree(dir_entry.path)

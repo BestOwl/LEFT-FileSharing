@@ -74,6 +74,7 @@ class LeftClient:
             self.logger.log_verbose("Read file table sync result: read_packet_from_stream return")
             if packet.opcode != OPCODE_SUCCESS:
                 self.logger.log_info(f"Sync FileTable failed: opcode {packet.opcode}")
+            self.logger.log_verbose(str(packet.data))
             event_list = deserialize_file_event_list_from_stream(BufferStream(packet.data))
             self.event_queue.push_range(event_list)
             self.logger.log_verbose("FileTable is sync")

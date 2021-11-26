@@ -46,7 +46,7 @@ class LeftManager:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind(("", self.left_server_port))
         self.server_socket.listen(10)
-        self.logger.log_info(f"LEFT server started on port {self.left_server_port}")
+        self.logger.log_info(f"LEFT delegate server started on port {self.left_server_port}")
 
         self.thread_delegate_server = threading.Thread(name="DelegateServer", target=self.delegate_server_accept_loop)
         self.thread_delegate_server.start()
@@ -72,7 +72,7 @@ class LeftManager:
             try:
                 # LEFT handshake
                 self.logger.log_verbose("handshaking")
-                client_socket.settimeout(5)
+                client_socket.settimeout(10)
 
                 packet = read_packet_from_stream(client_socket_stream)
                 if packet.opcode != OPCODE_CONNECT or packet.target is None or packet.target != b"LEFT":
@@ -89,6 +89,7 @@ class LeftManager:
 
                 self.logger.log_verbose("is_self_client_connected_to_peer call")
                 if not self.is_self_client_connected_to_peer(address_port[0]):
+                    self.logger.log_debug(f"LeftClient is trying to connect to peer {address_port[0]}")
                     self.try_client_connect(address_port[0])
                 self.logger.log_verbose("is_self_client_connected_to_peer return")
 

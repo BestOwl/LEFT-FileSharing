@@ -30,6 +30,7 @@ class LeftServer:
         self.dispose()
 
     def start(self):
+        self.logger.log_info(f"LeftServer-{self.peer_address} started")
         while True:
             if self._is_dispose:
                 self.logger.log_warning("server is closing")
@@ -51,6 +52,7 @@ class LeftServer:
         self.peer_down_callback(self.peer_address)
 
     def handle_sync_file_table(self, request: LeftPacket):
+        self.logger.log_verbose("Handle sync file table start")
         remote_ft = deserialize_file_table(request.data)
         file_events = self.file_table.diff(remote_ft)
         packet = LeftPacket(OPCODE_SUCCESS)
@@ -69,9 +71,11 @@ class LeftServer:
                 self.fire_event_callback(self.peer_address, e)
 
         packet.data = notify_event_list.serialize()
+        self.logger.log_verbose(str(packet.data))
         packet.write_bytes(self.sock_stream)
 
     def handle_file_event(self, request: LeftPacket):
+        self.logger.log_verbose("Handle file event start")
         event = file_event.deserialize_file_event_from_stream(BufferStream(request.data))
         if event.event_id == file_event.EVENT_UPDATE_MTIME:
             pass
