@@ -53,10 +53,12 @@ class LeftManager:
         return self.thread_delegate_server
 
     def delegate_server_accept_loop(self):
+        self.logger.log_verbose("Delegate server accept loop started")
         while True:
             client_socket, address_port = self.server_socket.accept()
-            client_socket_stream = SocketStream(client_socket)
             self.logger.log_info(f"Peer client {address_port} socket connected")
+
+            client_socket_stream = SocketStream(client_socket)
 
             if address_port[0] in self.server_handlers:
                 self.logger.log_info(f"Peer {address_port[0]} already connected with this server, reject another CONNECT attempt")
@@ -129,7 +131,7 @@ class LeftManager:
             for e in cmi.event_holding_list:
                 cmi.client.event_queue.push(e)
             cmi.event_holding_list = None
-        except socket.error:
+        except socket.error or LeftError:
             client.dispose()
             self.logger.log_verbose("client_lock lock")
             with self.client_lock:

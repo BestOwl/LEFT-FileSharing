@@ -35,10 +35,17 @@ class LeftClient:
         self.sock_stream = None
         self.is_self_server_accepted_peer_callback = is_self_server_accepted_peer_callback
         self.logger = Logger(f"LeftClient-{self.server_address}")
-        self.download_dispatcher = ParallelDispatcher(10)
+        self.download_dispatcher = ParallelDispatcher(10,
+                                                      new_share_execution_context_callback=
+                                                      self.new_share_file_transfer_client)
 
     def __del__(self):
         self.dispose()
+
+    def new_share_file_transfer_client(self, dispatch_id):
+        return FileTransferClient(self.server_address, self.file_server_port,
+                                  self.on_download_success, self.on_download_fail,
+                                  client_id=dispatch_id)
 
     def connect(self, initiate_file_table_sync=True):
         assert not self._is_disposed
@@ -48,6 +55,7 @@ class LeftClient:
         self.sock.connect((self.server_address, self.server_port))
         self.sock_connected = True
         self.sock_stream = SocketStream(self.sock)
+        self.logger.log_verbose("Socket connected with peer, handshaking")
 
         packet = LeftPacket(OPCODE_CONNECT)
         packet.target = b"LEFT"
@@ -97,7 +105,7 @@ class LeftClient:
             if event is not None:
                 self.logger.log_debug(f"Dequeue event: {event}")
                 if event.event_id == EVENT_RECEIVE_NEW_FILE or event.event_id == EVENT_RECEIVE_MODIFIED_FILE:
-                    self.dispatch_download(event, self.server_address)
+                    self.dispatch_download(event)
                 else:
                     packet = LeftPacket(OPCODE_FILE_EVENT)
                     if event.event_id == EVENT_SEND_NEW_FILE:
@@ -116,8 +124,8 @@ class LeftClient:
                 # self.logger.log_verbose("EventLoop: No event")
         self.logger.log_warning(f"Client {self.server_address} disposed, event loop stopped")
 
-    def dispatch_download(self, download_event: FileEvent, peer_address: str):
-        self.download_dispatcher.execute(self.download, args=(download_event, peer_address))
+    def dispatch_download(self, download_event: FileEvent):
+        self.download_dispatcher.execute(self.download, args=[download_event])
 
     def on_download_success(self, file_path):
         self.file_table[file_path].is_remote = False
@@ -125,14 +133,10 @@ class LeftClient:
     def on_download_fail(self, file_path):
         self.file_table.delete_from_file_table(file_path)
 
-    def download(self, download_event: FileEvent, peer_address: str):
+    def download(self, share_client_context: FileTransferClient, download_event: FileEvent):
         download_event.file_info.is_remote = True
-        client = FileTransferClient(peer_address, self.file_server_port, download_event.file_info.file_path,
-                                    success_callback=self.on_download_success,
-                                    fail_callback=self.on_download_fail)
-
         self.file_table.add_file_to_file_table(download_event.file_info)
-        client.download()
+        share_client_context.download(download_event.file_info.file_path)
 
     def dispose(self):
         if not self._is_disposed:

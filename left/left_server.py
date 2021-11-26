@@ -1,7 +1,9 @@
 # This file is part of Large Efficient Flexible and Trusty (LEFT) File Sharing
 # Author: Hao Su <hao.su19@student.xjtlu.edu.cn>
 # Copyright (c) 2021 Hao Su
+import os
 
+import socket
 
 from file_table import FileTable, deserialize as deserialize_file_table
 from stream import BufferStream
@@ -31,25 +33,29 @@ class LeftServer:
 
     def start(self):
         self.logger.log_info(f"LeftServer-{self.peer_address} started")
-        while True:
-            if self._is_dispose:
-                self.logger.log_warning("server is closing")
-                break
+        try:
+            while not self._is_dispose:
+                self.logger.log_verbose("read_packet_from_stream call")
+                packet = read_packet_from_stream(self.sock_stream)
+                self.logger.log_verbose("read_packet_from_stream return")
+                if packet is None:
+                    self.logger.log_warning(f"Peer {self.peer_address} disconnected")
+                    break
+                if packet.opcode == OPCODE_SYNC_FILE_TABLE:
+                    self.handle_sync_file_table(packet)
+                elif packet.opcode == OPCODE_FILE_EVENT:
+                    self.handle_file_event(packet)
+                else:
+                    self.logger.log_warning(f"Not support opcode {packet.opcode}")
 
-            self.logger.log_verbose("read_packet_from_stream call")
-            packet = read_packet_from_stream(self.sock_stream)
-            self.logger.log_verbose("read_packet_from_stream return")
-            if packet is None:
-                self.logger.log_warning(f"Peer {self.peer_address} disconnected")
-                break
-            if packet.opcode == OPCODE_SYNC_FILE_TABLE:
-                self.handle_sync_file_table(packet)
-            elif packet.opcode == OPCODE_FILE_EVENT:
-                self.handle_file_event(packet)
-            else:
-                self.logger.log_warning(f"Not support opcode {packet.opcode}")
-        self.logger.log_warning("server has been stopped")
-        self.peer_down_callback(self.peer_address)
+            self.logger.log_warning("server is closing")
+        except LeftError as e:
+            self.logger.log_error(e.message)
+        except socket.error as e:
+            self.logger.log_error(e)
+        finally:
+            self.logger.log_warning("server has been stopped")
+            self.peer_down_callback(self.peer_address)
 
     def handle_sync_file_table(self, request: LeftPacket):
         self.logger.log_verbose("Handle sync file table start")

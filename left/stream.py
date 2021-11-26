@@ -93,10 +93,24 @@ class SocketStream(IOStream):
         self.sock = sock
 
     def read(self, size: int):
-        return self.sock.recv(size)
+        buf = bytearray(size)
+        view = memoryview(buf)
+        while size > 0:
+            sz_read = self.sock.recv_into(view, size)
+            if sz_read == 0:
+                return b""
+
+            view = view[sz_read:]
+            size -= sz_read
+        return bytes(buf)
 
     def write(self, buffer: bytes):
-        self.sock.send(buffer)
+        # sz = len(buffer)
+        # view = memoryview(buffer)
+        # while sz > 0:
+        #     sent = self.sock.send(view)
+        #     sz -= sent
+        self.sock.sendall(buffer)
 
 
 class BufferStream(IOStream):
