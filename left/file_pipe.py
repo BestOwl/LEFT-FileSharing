@@ -4,21 +4,21 @@
 
 import threading
 
-from concurrent_queue import ConcurrentQueue
+from concurrent_queue import DataQueue
 from stream import IOStream
 from logger import Logger
 
 
 class FilePipe:
-    BUF_SIZE = 20971520
+    BUF_SIZE = 5242880  # 1MB
 
-    def __init__(self, input_stream: IOStream, output_stream, total_file_size: int):
+    def __init__(self, input_stream: IOStream, output_stream, total_file_size: int, logger_name="FilePipe"):
         self.input_stream = input_stream
         self.output_stream = output_stream
         self.total_file_size = total_file_size
 
-        self.data_queue = ConcurrentQueue()
-        self.logger = Logger("FilePipe")
+        self.data_queue = DataQueue(self.BUF_SIZE * 5)
+        self.logger = Logger(logger_name)
 
         self.thread_input = threading.Thread(name="FilePipeInput", target=self._pump_file_in)
         self.thread_output = threading.Thread(name="FilePipeOutput", target=self._pump_file_out)
@@ -31,20 +31,25 @@ class FilePipe:
         self.thread_output.join()
 
     def _pump_file_in(self):
-        total_input_size = 0
-        while total_input_size <= self.total_file_size:
-            buf = self.input_stream.read(self.BUF_SIZE)
-            if buf == b"":
-                break
-            total_input_size += len(buf)
+        remain_sz = self.total_file_size
+        while remain_sz > 0:
+
+            # self.logger.log_verbose(f"input_stream.read() call, remain size: {remain_sz}, request read: {min(self.BUF_SIZE, remain_sz)}")
+            buf = self.input_stream.read_unsafe(self.BUF_SIZE)
+            # self.logger.log_verbose(f"input_stream.read() return, remaining size: {remain_sz}")
+            remain_sz -= len(buf)
             self.data_queue.push(buf)
+
         self.logger.log_verbose("_pump_file_in return; Thread FilePipeInput exit")
 
     def _pump_file_out(self):
-        total_receive_sz = 0
-        while total_receive_sz < self.total_file_size:
+        remain_sz = self.total_file_size
+        while remain_sz > 0:
             buf = self.data_queue.pop()
-            if buf is not None:
-                total_receive_sz += len(buf)
-                self.output_stream.write(buf)
+            sent = len(buf)
+            # self.logger.log_verbose("output_stream.write() call")
+            self.output_stream.write(buf)
+            remain_sz -= sent
+            # self.logger.log_verbose(f"output_stream.write() return, remain size: {remain_sz}")
+
         self.logger.log_verbose("_pump_file_out return; Thread FilePipeOutput exit")

@@ -8,6 +8,7 @@ import socket
 import traceback
 
 from file_downloader import FileDownloader
+from file_pipe import FilePipe
 from left_error import LeftError
 from logger import Logger
 from left_constants import *
@@ -66,8 +67,11 @@ class FileTransferClient:
                 os.makedirs(dir_path, exist_ok=True)
             with open(file_path, "wb") as f:
                 self.logger.log_verbose("file handle opened, start FileDownloader")
-                downloader = FileDownloader(FileStream(f), self.sock_stream, file_total_len, None)
-                downloader.download_file()
+                # downloader = FileDownloader(FileStream(f), self.sock_stream, file_total_len, None)
+                # downloader.download_file()
+                pipe = FilePipe(self.sock_stream, FileStream(f), file_total_len,
+                                logger_name=f"FilePipe-Client-{self.client_id}-{file_path}")
+                pipe.pump_file()
 
             self.logger.log_info(f"{file_path}: download completed")
             success = True

@@ -38,3 +38,33 @@ class ConcurrentQueue:
                 return None
 
         return self.list.pop(0)
+
+
+class DataQueue(ConcurrentQueue):
+
+    def __init__(self, total_data_size_limit=8192):
+        super().__init__(blocking_mode=True)
+        self.total_data_size_limit = total_data_size_limit
+        self._data_size = 0
+        self._clear_threshold = 0
+        self._sz_blocking = threading.Event()
+
+    def push(self, item: bytes):
+        data_sz = len(item)
+        if data_sz + self._data_size > self.total_data_size_limit:
+            self._clear_threshold = self.total_data_size_limit - self._data_size
+            self._sz_blocking.clear()
+            self._sz_blocking.wait()
+        self._data_size += data_sz
+        super().push(item)
+
+    def push_range(self, items):
+        for item in items:
+            self.push(item)
+
+    def pop(self):
+        ret = super().pop()
+        self._data_size -= len(ret)
+        if self._data_size <= self.total_data_size_limit:
+            self._sz_blocking.set()
+        return ret

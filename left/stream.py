@@ -9,7 +9,20 @@ import struct
 class IOStream:
 
     def read(self, size: int) -> bytes:
+        """
+        Receive data from the stream. The received data size is guaranteed equal to the given size.
+        :param size: size to read (size guaranteed)
+        :return: data buffer
+        """
         pass
+
+    def read_unsafe(self, size: int):
+        """
+        Receive data from the stream.
+        :param size: the maximum size of data to be received
+        :return: data buffer. The size of data may smaller than the given size
+        """
+        return self.read(size)
 
     def read_string(self, encoding="utf-8") -> (str, int):
         """
@@ -103,6 +116,9 @@ class SocketStream(IOStream):
             view = view[sz_read:]
             size -= sz_read
         return bytes(buf)
+
+    def read_unsafe(self, size: int):
+        return self.sock.recv(size)
 
     def write(self, buffer: bytes):
         # sz = len(buffer)

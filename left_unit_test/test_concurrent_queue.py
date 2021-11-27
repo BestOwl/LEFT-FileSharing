@@ -60,7 +60,7 @@ class MyTestCase(unittest.TestCase):
         thread_event_source.join()
 
     def test_event_loop_blocking(self):
-        event_queue = ConcurrentQueue(blocking_mode=True)
+        event_queue = DataQueue(blocking_mode=True)
 
         def dummy_event_source(q: ConcurrentQueue):
             for i in range(10):
