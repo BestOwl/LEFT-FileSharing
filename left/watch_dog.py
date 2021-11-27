@@ -27,8 +27,13 @@ class WatchDog:
 
     def start(self):
         while not self.stop:
-            for dir_entry in scan_path_tree(self.file_table.root_path):
+            for dir_entry in scan_path_tree(self.file_table.root_path, ignore_hidden_file_or_folder=True):
                 path = get_normalized_file_path(dir_entry.path)
+
+                # skip
+                if not os.access(path, mode=os.R_OK):
+                    continue
+
                 if path not in self.file_table:
                     file_info = self.file_table.add_file_to_file_table_by_dir_entry(dir_entry)
                     self.dispatch_event(FileEvent(EVENT_SEND_NEW_FILE, file_info), "File not in table")
