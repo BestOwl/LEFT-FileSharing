@@ -5,7 +5,7 @@
 import os
 import hashlib
 
-BUF_SIZE: int = 65536  # 64kb buffer
+from left_constants import HASH_BUF_SIZE
 
 
 def get_file_last_modified_time(dir_entry: os.DirEntry) -> int:
@@ -28,7 +28,7 @@ def get_file_hash_md5(path: str):
     if os.access(path, mode=os.R_OK):
         with open(path, mode="rb") as f:
             while True:
-                data = f.read(BUF_SIZE)
+                data = f.read(HASH_BUF_SIZE)
                 if not data:
                     break
                 md5.update(data)

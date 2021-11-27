@@ -2,7 +2,7 @@
 # Author: Hao Su <hao.su19@student.xjtlu.edu.cn>
 # Copyright (c) 2021 Hao Su
 
-from left_constants import FILE_TRANSFER_BUFFER_SIZE
+from left_constants import SIMPLE_FILE_TRANSFER_BUFFER_SIZE
 from stream import IOStream
 
 
@@ -14,7 +14,7 @@ class FileProvider:
 
     def provide_file(self):
         while True:
-            buf = self.file_stream.read(FILE_TRANSFER_BUFFER_SIZE)
+            buf = self.file_stream.read(SIMPLE_FILE_TRANSFER_BUFFER_SIZE)
             if buf == b"":
                 break
             else:

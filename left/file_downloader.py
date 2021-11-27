@@ -3,7 +3,7 @@
 # Copyright (c) 2021 Hao Su
 
 from stream import IOStream
-from left_constants import FILE_TRANSFER_BUFFER_SIZE
+from left_constants import SIMPLE_FILE_TRANSFER_BUFFER_SIZE
 
 
 class FileDownloader:
@@ -17,7 +17,7 @@ class FileDownloader:
     def download_file(self):
         remain_sz = self.total_file_size
         while remain_sz > 0:
-            buf = self.io_stream.read(min(remain_sz, FILE_TRANSFER_BUFFER_SIZE))
+            buf = self.io_stream.read(min(remain_sz, SIMPLE_FILE_TRANSFER_BUFFER_SIZE))
             remain_sz -= len(buf)
 
             # if self.download_progress_callback is not None:
