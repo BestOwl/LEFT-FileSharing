@@ -31,7 +31,7 @@ class MyTestCase(unittest.TestCase):
 
         self.assertIsNone(queue.pop())
 
-    def test_event_loop(self):
+    def test_event_loop_non_blocking(self):
         event_queue = ConcurrentQueue()
 
         def dummy_event_source(q: ConcurrentQueue):
@@ -40,12 +40,42 @@ class MyTestCase(unittest.TestCase):
                 q.push(i)
 
         def event_loop(q: ConcurrentQueue):
+            event_id = 0
             while True:
                 event = q.pop()
                 if event is not None:
+                    self.assertEqual(event_id, event)
+                    event_id += 1
                     print(f"Event arrived {event}")
                     if event == 9:
                         break
+
+        thread_event_source = threading.Thread(target=dummy_event_source, args=[event_queue])
+        thread_event_loop = threading.Thread(target=event_loop, args=[event_queue])
+
+        thread_event_source.start()
+        thread_event_loop.start()
+
+        thread_event_loop.join()
+        thread_event_source.join()
+
+    def test_event_loop_blocking(self):
+        event_queue = ConcurrentQueue(blocking_mode=True)
+
+        def dummy_event_source(q: ConcurrentQueue):
+            for i in range(10):
+                time.sleep(1)
+                q.push(i)
+
+        def event_loop(q: ConcurrentQueue):
+            event_id = 0
+            while True:
+                event = q.pop()
+                self.assertEqual(event_id, event)
+                event_id += 1
+                print(f"Event arrived {event}")
+                if event == 9:
+                    break
 
         thread_event_source = threading.Thread(target=dummy_event_source, args=[event_queue])
         thread_event_loop = threading.Thread(target=event_loop, args=[event_queue])

@@ -30,7 +30,7 @@ class LeftClient:
         self.file_table = file_table
         self.sock_connected = False
         self._is_disposed = False
-        self.event_queue = ConcurrentQueue()
+        self.event_queue = ConcurrentQueue(blocking_mode=True)
         self.thread_event_loop = None
         self.sock_stream = None
         self.is_self_server_accepted_peer_callback = is_self_server_accepted_peer_callback
@@ -101,27 +101,26 @@ class LeftClient:
 
     def event_loop(self):
         while not self._is_disposed:
-            event: FileEvent = self.event_queue.pop()
-            if event is not None:
-                self.logger.log_debug(f"Dequeue event: {event}")
-                if event.event_id == EVENT_RECEIVE_NEW_FILE or event.event_id == EVENT_RECEIVE_MODIFIED_FILE:
-                    self.dispatch_download(event)
-                else:
-                    packet = LeftPacket(OPCODE_FILE_EVENT)
-                    if event.event_id == EVENT_SEND_NEW_FILE:
-                        event.event_id = EVENT_RECEIVE_NEW_FILE
-                    elif event.event_id == EVENT_SEND_MODIFIED_FILE:
-                        event.event_id = EVENT_RECEIVE_MODIFIED_FILE
-                    self.logger.log_info(f"Sending event {event.event_id} to peer {self.server_address}")
-                    packet.data = event.serialize()
-                    packet.write_bytes(self.sock_stream)
+            event: FileEvent = self.event_queue.pop()  # blocking-mode event queue
 
-                    response = read_packet_from_stream(self.sock_stream)
-                    if response.opcode != OPCODE_SUCCESS:
-                        pass
-                        # TODO: non-successful file event
-            # else:
-                # self.logger.log_verbose("EventLoop: No event")
+            self.logger.log_debug(f"Dequeue event: {event}")
+            if event.event_id == EVENT_RECEIVE_NEW_FILE or event.event_id == EVENT_RECEIVE_MODIFIED_FILE:
+                self.dispatch_download(event)
+            else:
+                packet = LeftPacket(OPCODE_FILE_EVENT)
+                if event.event_id == EVENT_SEND_NEW_FILE:
+                    event.event_id = EVENT_RECEIVE_NEW_FILE
+                elif event.event_id == EVENT_SEND_MODIFIED_FILE:
+                    event.event_id = EVENT_RECEIVE_MODIFIED_FILE
+                self.logger.log_info(f"Sending event {event.event_id} to peer {self.server_address}")
+                packet.data = event.serialize()
+                packet.write_bytes(self.sock_stream)
+
+                response = read_packet_from_stream(self.sock_stream)
+                if response.opcode != OPCODE_SUCCESS:
+                    pass
+                    # TODO: non-successful file event
+
         self.logger.log_warning(f"Client {self.server_address} disposed, event loop stopped")
 
     def dispatch_download(self, download_event: FileEvent):
