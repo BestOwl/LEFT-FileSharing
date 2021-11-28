@@ -29,22 +29,21 @@ def get_file_hash_md5(path: str):
     chunks = HashChunkList()
 
     if os.access(path, mode=os.R_OK):
-        file_size = get_file_size(path)
-
-        round_per_chunk = ceil(file_size / HASH_CHUNK_SIZE)
+        assert (HASH_CHUNK_SIZE % HASH_BUF_SIZE == 0)
+        round_per_chunk = int(HASH_CHUNK_SIZE / HASH_BUF_SIZE)
         end_flag = False
         try:
             with open(path, mode="rb") as f:
                 while True:
-                    md5 = hashlib.md5()
+                    hash_alg = hashlib.sha1()
 
                     for i in range(round_per_chunk):
                         data = f.read(HASH_BUF_SIZE)
                         if not data:
                             end_flag = True
                             break
-                        md5.update(data)
-                    chunks.append(md5.hexdigest())
+                        hash_alg.update(data)
+                    chunks.append(hash_alg.hexdigest())
 
                     if end_flag:
                         break
