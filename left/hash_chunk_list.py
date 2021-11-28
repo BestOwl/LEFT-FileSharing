@@ -16,6 +16,9 @@ class ChunkIdList:
         else:
             self.chunk_id_list = []
 
+    def __str__(self):
+        return str(self.chunk_id_list)
+
     def __len__(self):
         return len(self.chunk_id_list)
 

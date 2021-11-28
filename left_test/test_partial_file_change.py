@@ -10,7 +10,7 @@ import secrets
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, help="test file path", required=True)
-    parser.add_argument("--test-mode", type=str, help="Mode: \n[head] \n[middle] \n[tail]", default="head")
+    parser.add_argument("--test-mode", type=str, help="Mode: \n[head] \n[middle] \n[tail] \n[append]", default="head")
     parser.add_argument("--test-size", type=int, help="Test size in bytes", default=10485760)  # 10MB
 
     args = parser.parse_args()
@@ -21,9 +21,14 @@ def main():
     print(f"Test size: {args.test_size}")
 
     with open(args.path, "r+b") as f:
-        f.seek(0)
         if args.test_mode == "head":
-            f.write(secrets.token_bytes(args.test_size))
+            f.seek(0)
+        elif args.test_mode == "tail":
+            f.seek(total_file_size - args.test_size)
+        elif args.test_mode == "append":
+            f.seek(total_file_size)
+
+        f.write(secrets.token_bytes(args.test_size))
 
     print("Operation completed")
 

@@ -1,7 +1,7 @@
 # This file is part of Large Efficient Flexible and Trusty (LEFT) File Sharing
 # Author: Hao Su <hao.su19@student.xjtlu.edu.cn>
 # Copyright (c) 2021 Hao Su
-
+import math
 import os
 import struct
 import socket
@@ -9,6 +9,7 @@ import traceback
 
 from file_downloader import FileDownloader
 from file_pipe import FilePipe
+from hash_chunk_list import ChunkIdList
 from left_error import LeftError
 from logger import Logger
 from left_constants import *
@@ -45,10 +46,22 @@ class FileTransferClient:
     def __del__(self):
         self.sock.close()
 
-    def download(self, file_path):
+    def download(self, file_path, download_chunk: ChunkIdList):
+        """
+        Download file from server
+        :param file_path: file path to download
+        :param download_chunk: chunks to download, ChunkIdList object
+            Note: If the list is None or empty, will download the whole file
+        :return:
+        """
         success = False
         try:
-            request = LeftPacket(OPCODE_DOWNLOAD_FILE)
+            request = None
+            if download_chunk is None:
+                request = LeftPacket(OPCODE_DOWNLOAD_FILE)
+            else:
+                request = LeftPacket(OPCODE_DOWNLOAD_PARTIAL_FILE)
+                request.data = download_chunk.serialize()
             request.name = file_path
             request.write_bytes(self.sock_stream)
 
@@ -65,13 +78,30 @@ class FileTransferClient:
             if not os.path.exists(dir_path):
                 self.logger.log_verbose("File dir does not exist, mkdir first")
                 os.makedirs(dir_path, exist_ok=True)
-            with open(file_path, "wb") as f:
-                self.logger.log_verbose("file handle opened, start FileDownloader")
-                # downloader = FileDownloader(FileStream(f), self.sock_stream, file_total_len, None)
-                # downloader.download_file()
-                pipe = FilePipe(self.sock_stream, FileStream(f), file_total_len,
-                                logger_name=f"FilePipe-Client-{self.client_id}-{file_path}")
-                pipe.pump_file()
+
+            if request.opcode == OPCODE_DOWNLOAD_FILE:
+                with open(file_path, "wb") as f:
+                    self.logger.log_verbose("file handle opened, start FileDownloader")
+                    # downloader = FileDownloader(FileStream(f), self.sock_stream, file_total_len, None)
+                    # downloader.download_file()
+                    pipe = FilePipe(self.sock_stream, FileStream(f), file_total_len,
+                                    logger_name=f"FilePipe-Client-{self.client_id}-{file_path}")
+                    pipe.pump_file()
+            else:
+                with open(file_path, "r+b") as f:
+                    self.logger.log_verbose("file handle opened, start FileDownloader")
+                    last_chunk_id = math.ceil(file_total_len / HASH_CHUNK_SIZE) - 1
+                    for chunk_id in download_chunk:
+                        f.seek(chunk_id * HASH_CHUNK_SIZE)
+
+                        size = HASH_CHUNK_SIZE
+                        if chunk_id == last_chunk_id:
+                            size = file_total_len - chunk_id * HASH_CHUNK_SIZE
+                        self.logger.log_debug(f"Receive chunk size: {size}")
+
+                        pipe = FilePipe(self.sock_stream, FileStream(f), size,
+                                        logger_name=f"FilePipe-Client-{self.client_id}-{file_path}")
+                        pipe.pump_file()
 
             self.logger.log_info(f"{file_path}: download completed")
             success = True

@@ -6,6 +6,7 @@ import threading
 from socket import *
 
 from file_transfer_client import FileTransferClient
+from hash_chunk_list import ChunkIdList
 from parallel_dispatcher import ParallelDispatcher
 from stream import SocketStream
 from logger import Logger
@@ -104,8 +105,23 @@ class LeftClient:
             event: FileEvent = self.event_queue.pop()  # blocking-mode event queue
 
             self.logger.log_debug(f"Dequeue event: {event}")
-            if event.event_id == EVENT_RECEIVE_NEW_FILE or event.event_id == EVENT_RECEIVE_MODIFIED_FILE:
+            if event.event_id == EVENT_RECEIVE_NEW_FILE:
                 self.dispatch_download(event)
+            elif event.event_id == EVENT_RECEIVE_MODIFIED_FILE:
+                if event.file_info.file_path not in self.file_table:
+                    # this file is not on local, request full file
+                    self.logger.log_info(f"File {event.file_info.file_path} not in local, request full file")
+                    self.dispatch_download(event)
+                else:
+                    diff_chunks = event.file_info.hash_md5_chunks.diff(
+                        self.file_table[event.file_info.file_path].hash_md5_chunks)
+
+                    if len(diff_chunks) == 0:
+                        self.logger.log_warning("Not support this type of partial changes, request full file instead")
+                        self.dispatch_download(event)
+                    else:
+                        self.logger.log_info(f"Changed chunks for file {event.file_info.file_path}: {diff_chunks}")
+                        self.dispatch_download(event, diff_chunks)
             else:
                 packet = LeftPacket(OPCODE_FILE_EVENT)
                 if event.event_id == EVENT_SEND_NEW_FILE:
@@ -123,8 +139,8 @@ class LeftClient:
 
         self.logger.log_warning(f"Client {self.server_address} disposed, event loop stopped")
 
-    def dispatch_download(self, download_event: FileEvent):
-        self.download_dispatcher.execute(self.download, args=[download_event])
+    def dispatch_download(self, download_event: FileEvent, download_chunks=None):
+        self.download_dispatcher.execute(self.download, args=[download_event, download_chunks])
 
     def on_download_success(self, file_path):
         self.file_table[file_path].is_remote = False
@@ -132,10 +148,11 @@ class LeftClient:
     def on_download_fail(self, file_path):
         self.file_table.delete_from_file_table(file_path)
 
-    def download(self, share_client_context: FileTransferClient, download_event: FileEvent):
+    def download(self, share_client_context: FileTransferClient, download_event: FileEvent,
+                 download_chunks: ChunkIdList):
         download_event.file_info.is_remote = True
         self.file_table.add_file_to_file_table(download_event.file_info)
-        share_client_context.download(download_event.file_info.file_path)
+        share_client_context.download(download_event.file_info.file_path, download_chunks)
 
     def dispose(self):
         if not self._is_disposed:

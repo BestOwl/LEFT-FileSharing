@@ -35,7 +35,10 @@ class FilePipe:
         while remain_sz > 0:
 
             # self.logger.log_verbose(f"input_stream.read() call, remain size: {remain_sz}, request read: {min(self.BUF_SIZE, remain_sz)}")
-            buf = self.input_stream.read_unsafe(self.BUF_SIZE)
+
+            buf = self.input_stream.read(min(self.BUF_SIZE, remain_sz))
+            # TODO: can not use read_unsafe() here, will cause bug, don't know why yet, fix it later
+
             # self.logger.log_verbose(f"input_stream.read() return, remaining size: {remain_sz}")
             remain_sz -= len(buf)
             self.data_queue.push(buf)

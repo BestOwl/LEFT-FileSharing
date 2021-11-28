@@ -1,6 +1,8 @@
 # This file is part of Large Efficient Flexible and Trusty (LEFT) File Sharing
 # Author: Hao Su <hao.su19@student.xjtlu.edu.cn>
 # Copyright (c) 2021 Hao Su
+
+import math
 import socket
 import threading
 from socket import *
@@ -9,8 +11,9 @@ import struct
 from file_table import FileTable
 from file_provider import FileProvider
 from file_pipe import FilePipe
+from hash_chunk_list import deserialize_chunk_id_list_from_stream
 from left_error import LeftError
-from stream import SocketStream, FileStream, IOStream
+from stream import SocketStream, FileStream, IOStream, BufferStream
 from left_packet import read_packet_from_stream, LeftPacket
 from left_constants import *
 from file_helper import get_file_size
@@ -78,13 +81,30 @@ class FileTransferServerHandler:
         self.logger.log_debug(f"Thread {self.thread_handler.name} start")
         self.thread_handler.start()
 
+    def _parse_download_request(self):
+        packet = read_packet_from_stream(self.sock_stream)
+
+        if packet is None or packet.opcode == OPCODE_DOWNLOAD_FILE_BYE:
+            return None
+        elif packet.opcode != OPCODE_DOWNLOAD_FILE and packet.opcode != OPCODE_DOWNLOAD_PARTIAL_FILE \
+                or packet.name is None or len(packet.name) == 0:
+            raise LeftError("Bad request")
+
+        file_path = packet.name
+        download_chunks = None
+        if packet.opcode == OPCODE_DOWNLOAD_PARTIAL_FILE:
+            buf_stream = BufferStream(packet.data)
+            download_chunks = deserialize_chunk_id_list_from_stream(buf_stream)
+        return file_path, download_chunks
+
     def start(self):
         try:
             self.logger.log_verbose("Reading file request")
-            packet = read_packet_from_stream(self.sock_stream)
-            if packet.opcode != OPCODE_DOWNLOAD_FILE or packet.name is None or len(packet.name) == 0:
-                raise LeftError("Bad request")
-            file_path = packet.name
+            parse_result = self._parse_download_request()
+            if parse_result is None:
+                raise LeftError("Bad request, un-supported opcode")
+            file_path, download_chunks = parse_result
+
             while True:
                 if file_path not in self.file_table:
                     response = LeftPacket(OPCODE_NOT_FOUND)
@@ -100,23 +120,35 @@ class FileTransferServerHandler:
                 response.target = struct.pack("!I", total_file_size)
                 response.write_bytes(self.sock_stream)
                 self.logger.log_verbose(f"File length {total_file_size} sent")
-
                 with open(file_path, "rb") as fd:
                     self.logger.log_verbose("File handle open, start file transmission")
-                    # provider = FileProvider(FileStream(fd), self.sock_stream)
-                    # provider.provide_file()
-                    pipe = FilePipe(FileStream(fd), self.sock_stream, total_file_size,
-                                    logger_name=f"FilePipe-Server-{self.handler_identifier}-{file_path}")
-                    pipe.pump_file()
+                    if download_chunks is None:
+                        # provider = FileProvider(FileStream(fd), self.sock_stream)
+                        # provider.provide_file()
+                        pipe = FilePipe(FileStream(fd), self.sock_stream, total_file_size,
+                                        logger_name=f"FilePipe-Server-{self.handler_identifier}-{file_path}")
+                        pipe.pump_file()
+                    else:
+                        last_chunk_id = math.ceil(total_file_size / HASH_CHUNK_SIZE) - 1
+                        for chunk_id in download_chunks:
+                            fd.seek(chunk_id * HASH_CHUNK_SIZE)
+
+                            size = HASH_CHUNK_SIZE
+                            if chunk_id == last_chunk_id:
+                                size = total_file_size - chunk_id * HASH_CHUNK_SIZE
+                            self.logger.log_debug(f"Send chunk size: {size}")
+                            pipe = FilePipe(FileStream(fd), self.sock_stream, size,
+                                            logger_name=f"FilePipe-Server-{self.handler_identifier}-{file_path}")
+                            pipe.pump_file()
 
                 self.logger.log_info(f"File transmission {file_path} completed")
 
                 self.logger.log_verbose("Continue, reading file request")
-                packet = read_packet_from_stream(self.sock_stream)
-                if packet is not None and packet.opcode == OPCODE_DOWNLOAD_FILE:
-                    file_path = packet.name
-                else:
+
+                parse_result = self._parse_download_request()
+                if parse_result is None:
                     return
+                file_path, download_chunks = parse_result
         except LeftError as e:
             self.logger.log_error(f"Illegal file transfer {self.address_port}: {e.message}")
         finally:
