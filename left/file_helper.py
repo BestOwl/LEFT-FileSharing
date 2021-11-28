@@ -4,8 +4,10 @@
 
 import os
 import hashlib
+from math import ceil
 
-from left_constants import HASH_BUF_SIZE
+from hash_chunk_list import HashChunkList
+from left_constants import HASH_BUF_SIZE, HASH_CHUNK_SIZE
 
 
 def get_file_last_modified_time(dir_entry: os.DirEntry) -> int:
@@ -20,22 +22,37 @@ def get_file_last_modified_time(dir_entry: os.DirEntry) -> int:
 def get_file_hash_md5(path: str):
     """
     :param path: File path string
-    :return: MD5 hash of a specific file
+    :return: HashChunkList object. If the file is currently
+    unavailable to hash (unable to read), will return a empty HashChunkList
     """
 
-    md5 = hashlib.md5()
+    chunks = HashChunkList()
 
     if os.access(path, mode=os.R_OK):
-        with open(path, mode="rb") as f:
-            while True:
-                data = f.read(HASH_BUF_SIZE)
-                if not data:
-                    break
-                md5.update(data)
+        file_size = get_file_size(path)
 
-        return md5.hexdigest()
+        round_per_chunk = ceil(file_size / HASH_CHUNK_SIZE)
+        end_flag = False
+        try:
+            with open(path, mode="rb") as f:
+                while True:
+                    md5 = hashlib.md5()
+
+                    for i in range(round_per_chunk):
+                        data = f.read(HASH_BUF_SIZE)
+                        if not data:
+                            end_flag = True
+                            break
+                        md5.update(data)
+                    chunks.append(md5.hexdigest())
+
+                    if end_flag:
+                        break
+                return chunks
+        except PermissionError:
+            return chunks
     else:
-        return
+        return chunks
 
 
 def get_file_size(path: str):

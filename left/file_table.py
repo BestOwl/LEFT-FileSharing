@@ -8,7 +8,8 @@ import os
 
 from file_event import *
 import file_helper
-from stream import BufferStream
+from hash_chunk_list import deserialize_hash_chunk_list_from_stream
+from stream import BufferStream, new_empty_buffer_stream
 
 
 class FileTable:
@@ -43,13 +44,14 @@ class FileTable:
         new_ft = FileTable(self.root_path, auto_init_table=False)
         for path in self:
             new_ft.add_file_to_file_table(
-                FileInfo(path, self.file_dict[path].last_modified_time, self.file_dict[path].hash_md5))
+                FileInfo(path, self.file_dict[path].last_modified_time, self.file_dict[path].hash_md5_chunks))
         return new_ft
 
     def add_file_to_file_table_by_dir_entry(self, dir_entry: os.DirEntry) -> FileInfo:
+        hash_chunks = file_helper.get_file_hash_md5(dir_entry.path)
         new_file_info = FileInfo(dir_entry.path,
                                  file_helper.get_file_last_modified_time(dir_entry),
-                                 file_helper.get_file_hash_md5(dir_entry.path))
+                                 hash_chunks)
         return self.add_file_to_file_table(new_file_info)
 
     def add_file_to_file_table(self, file_info: FileInfo) -> FileInfo:
@@ -68,9 +70,9 @@ class FileTable:
             del self.file_dict[path]
         self.lock.release()
 
-    def update_file_table_md5(self, file_path: str, actual_md5: str):
+    def update_file_table_md5(self, file_path: str, hash_chunks):
         self.lock.acquire()
-        self.file_dict[file_path].hash_md5 = actual_md5
+        self.file_dict[file_path].hash_md5_chunks = hash_chunks
         self.lock.release()
 
     def update_file_table_mtime(self, file_path: str, last_modified_time: float):
@@ -79,16 +81,12 @@ class FileTable:
         self.lock.release()
 
     def serialize(self) -> bytes:
-        buf = bytes()
+        buf_stream = new_empty_buffer_stream()
         for path in self.file_dict:
-            b_path = bytes(path, 'utf-8')
-            b_mtime = pack("!Q", self.file_dict[path].last_modified_time)
-            b_hash_md5 = bytes(self.file_dict[path].hash_md5, 'utf-8')
-
-            sz_mtime = calcsize("!Q")
-            buf = pack(f"{len(buf)}s {len(b_path)}s s {sz_mtime}s {len(b_hash_md5)}s s",
-                       buf, b_path, b"\x00", b_mtime, b_hash_md5, b"\x00")
-        return buf
+            buf_stream.write_string(path)
+            buf_stream.write_unsigned_long_long(self.file_dict[path].last_modified_time)
+            buf_stream.write(self.file_dict[path].hash_md5_chunks.serialize())
+        return buf_stream.buffer
 
     def diff(self, other_file_table) -> []:
         events = []
@@ -97,7 +95,7 @@ class FileTable:
             this_mtime = self[file_path].last_modified_time
             other_mtime = other_file_table[file_path].last_modified_time
             if this_mtime != other_mtime:
-                if self[file_path].hash_md5 == other_file_table[file_path].hash_md5:
+                if self[file_path].hash_md5_chunks == other_file_table[file_path].hash_md5_chunks:
                     if this_mtime < other_mtime:
                         events.append(FileEvent(EVENT_UPDATE_MTIME, other_file_table[file_path]))
                     else:
@@ -138,7 +136,7 @@ def deserialize(buffer: bytes) -> FileTable:
         if file_path is None:
             break
         mtime = unpack("!Q", buf_stream.read(8))[0]  # size of long long
-        hash_md5, _ = buf_stream.read_string()
-        remote_ft.add_file_to_file_table(FileInfo(file_path, mtime, hash_md5))
+        chunks = deserialize_hash_chunk_list_from_stream(buf_stream)
+        remote_ft.add_file_to_file_table(FileInfo(file_path, mtime, chunks))
 
     return remote_ft

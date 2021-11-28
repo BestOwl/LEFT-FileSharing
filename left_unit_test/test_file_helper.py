@@ -13,8 +13,9 @@ class MyTestCase(unittest.TestCase):
             "../share_dummy_files/1.txt"))
         self.assertEqual("3e25960a79dbc69b674cd4ec67a72c62", file_helper.get_file_hash_md5(
             "../share_dummy_files/2.txt"))
+
         self.assertEqual("cdfb631eace07df242e8f43b089dae10", file_helper.get_file_hash_md5(
-            "../share_dummy_files/3.ova"))
+                    "../share_dummy_files/3.ova").hash_total)
 
     def test_is_hidden_file(self):
         self.assertTrue(file_helper.is_hidden_file("/tmp/.haha"))

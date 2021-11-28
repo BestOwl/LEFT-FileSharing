@@ -63,14 +63,16 @@ class WatchDog:
         :return: None
         """
         if self.file_table[path].last_modified_time != actual_mtime:
-            actual_md5 = file_helper.get_file_hash_md5(path)
+            hash_chunks = file_helper.get_file_hash_md5(path)
 
             # the file we want to check might be temporarily unreadable due to in-progress file copy operation or other
             # operation, so the actual_md5 might be None if this is the case
-            if actual_md5 is not None:
-                if self.file_table[path].hash_md5 != actual_md5:
-                    self.dispatch_event(FileEvent(EVENT_SEND_MODIFIED_FILE, self.file_table[path]),
-                                        "Actual md5 do not match")
-                    self.file_table.update_file_table_md5(path, actual_md5)
+            if len(hash_chunks) > 0:
+                if self.file_table[path].hash_md5_chunks != hash_chunks:
+                    recorded_chunks = self.file_table[path].hash_md5_chunks
+                    if len(recorded_chunks) > 0:
+                        self.dispatch_event(FileEvent(EVENT_SEND_MODIFIED_FILE, self.file_table[path]),
+                                            "Actual MD5 do not match")
+                    self.file_table.update_file_table_md5(path, hash_chunks)
                 else:
                     self.file_table.update_file_table_mtime(path, actual_mtime)

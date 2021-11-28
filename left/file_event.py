@@ -40,7 +40,7 @@ class FileEvent:
 
     def __str__(self):
         return f"{_event_str_map[self.event_id]} {self.file_info.file_path} {self.file_info.last_modified_time} " \
-               f"{self.file_info.hash_md5}"
+               f"chunks:{self.file_info.hash_md5_chunks}"
 
     def serialize(self):
         buf_stream = stream.new_empty_buffer_stream()

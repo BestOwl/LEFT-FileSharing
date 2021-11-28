@@ -88,7 +88,7 @@ class LeftServer:
             # TODO: update mtime
         else:
             self.logger.log_info(
-                f"Received event {event.event_id}: {event.file_info.file_path} from peer {self.peer_address}")
+                f"Received event {event}: from peer {self.peer_address}")
             self.fire_event_callback(self.peer_address, event)
 
         response = LeftPacket(OPCODE_SUCCESS)
