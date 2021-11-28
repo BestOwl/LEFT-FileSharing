@@ -12,23 +12,40 @@ from logger import Logger
 class FilePipe:
     BUF_SIZE = 5242880  # 1MB
 
-    def __init__(self, input_stream: IOStream, output_stream, total_file_size: int, logger_name="FilePipe"):
+    def __init__(self, name="FilePipe"):
+        self.name = name
+
+        self.input_stream = None
+        self.output_stream = None
+        self.total_file_size = None
+
+        self.data_queue = DataQueue(self.BUF_SIZE * 5)
+        self.logger = Logger(name)
+
+        self.thread_output = threading.Thread(name="FilePipeOutput", target=self._pump_file_out)
+
+        self._start_wait = threading.Event()
+        self._end_wait = threading.Event()
+        self._is_disposed = False
+
+        self.thread_output.start()
+
+    def dispose(self):
+        self._is_disposed = True
+        self._start_wait.set()
+
+    def pump_file(self, input_stream: IOStream, output_stream: IOStream, total_file_size: int):
         self.input_stream = input_stream
         self.output_stream = output_stream
         self.total_file_size = total_file_size
 
-        self.data_queue = DataQueue(self.BUF_SIZE * 5)
-        self.logger = Logger(logger_name)
+        self._end_wait.clear()
 
-        self.thread_input = threading.Thread(name="FilePipeInput", target=self._pump_file_in)
-        self.thread_output = threading.Thread(name="FilePipeOutput", target=self._pump_file_out)
+        self._start_wait.set()
+        self._start_wait.clear()
 
-    def pump_file(self):
-        self.thread_input.start()
-        self.thread_output.start()
-
-        self.thread_input.join()
-        self.thread_output.join()
+        self._pump_file_in()
+        self._end_wait.wait()
 
     def _pump_file_in(self):
         remain_sz = self.total_file_size
@@ -43,16 +60,24 @@ class FilePipe:
             remain_sz -= len(buf)
             self.data_queue.push(buf)
 
-        self.logger.log_verbose("_pump_file_in return; Thread FilePipeInput exit")
+        self.logger.log_verbose("_pump_file_in return;")
 
     def _pump_file_out(self):
-        remain_sz = self.total_file_size
-        while remain_sz > 0:
-            buf = self.data_queue.pop()
-            sent = len(buf)
-            # self.logger.log_verbose("output_stream.write() call")
-            self.output_stream.write(buf)
-            remain_sz -= sent
-            # self.logger.log_verbose(f"output_stream.write() return, remain size: {remain_sz}")
+        while not self._is_disposed:
+            self._start_wait.wait()
+            if self._is_disposed:
+                self._end_wait.set()
+                break
 
-        self.logger.log_verbose("_pump_file_out return; Thread FilePipeOutput exit")
+            remain_sz = self.total_file_size
+            while remain_sz > 0:
+                buf = self.data_queue.pop()
+                sent = len(buf)
+                # self.logger.log_verbose("output_stream.write() call")
+                self.output_stream.write(buf)
+                remain_sz -= sent
+                # self.logger.log_verbose(f"output_stream.write() return, remain size: {remain_sz}")
+
+            self._end_wait.set()
+
+        self.logger.log_verbose(f"_pump_file_out return; Thread {self.name} exit")

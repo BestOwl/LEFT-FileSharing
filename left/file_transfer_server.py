@@ -78,6 +78,8 @@ class FileTransferServerHandler:
         self.thread_handler = threading.Thread(name=f"FileTransferServerHandler-{address_port}-{handler_identifier}",
                                                target=self.start)
         self.logger = Logger(self.thread_handler.name)
+        self.pipe = FilePipe(self.thread_handler.name)
+
         self.logger.log_debug(f"Thread {self.thread_handler.name} start")
         self.thread_handler.start()
 
@@ -125,11 +127,10 @@ class FileTransferServerHandler:
                     if download_chunks is None:
                         # provider = FileProvider(FileStream(fd), self.sock_stream)
                         # provider.provide_file()
-                        pipe = FilePipe(FileStream(fd), self.sock_stream, total_file_size,
-                                        logger_name=f"FilePipe-Server-{self.handler_identifier}-{file_path}")
-                        pipe.pump_file()
+                        self.pipe.pump_file(FileStream(fd), self.sock_stream, total_file_size)
                     else:
                         last_chunk_id = math.ceil(total_file_size / HASH_CHUNK_SIZE) - 1
+                        f_stream = FileStream(fd)
                         for chunk_id in download_chunks:
                             fd.seek(chunk_id * HASH_CHUNK_SIZE)
 
@@ -137,9 +138,7 @@ class FileTransferServerHandler:
                             if chunk_id == last_chunk_id:
                                 size = total_file_size - chunk_id * HASH_CHUNK_SIZE
                             self.logger.log_debug(f"Send chunk size: {size}")
-                            pipe = FilePipe(FileStream(fd), self.sock_stream, size,
-                                            logger_name=f"FilePipe-Server-{self.handler_identifier}-{file_path}")
-                            pipe.pump_file()
+                            self.pipe.pump_file(f_stream, self.sock_stream, size)
 
                 self.logger.log_info(f"File transmission {file_path} completed")
 
@@ -154,3 +153,4 @@ class FileTransferServerHandler:
         finally:
             self.logger.log_verbose(f"Thread {self.thread_handler.name} exit")
             self.sock.close()
+            self.pipe.dispose()

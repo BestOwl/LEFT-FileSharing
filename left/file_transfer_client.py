@@ -43,8 +43,11 @@ class FileTransferClient:
 
         self.logger.log_info(f"Connected to download service")
 
+        self.pipe = FilePipe(f"FileTransferClient-{client_id}")
+
     def __del__(self):
         self.sock.close()
+        self.pipe.dispose()
 
     def download(self, file_path, download_chunk: ChunkIdList):
         """
@@ -84,13 +87,12 @@ class FileTransferClient:
                     self.logger.log_verbose("file handle opened, start FileDownloader")
                     # downloader = FileDownloader(FileStream(f), self.sock_stream, file_total_len, None)
                     # downloader.download_file()
-                    pipe = FilePipe(self.sock_stream, FileStream(f), file_total_len,
-                                    logger_name=f"FilePipe-Client-{self.client_id}-{file_path}")
-                    pipe.pump_file()
+                    self.pipe.pump_file(self.sock_stream, FileStream(f), file_total_len)
             else:
                 with open(file_path, "r+b") as f:
                     self.logger.log_verbose("file handle opened, start FileDownloader")
                     last_chunk_id = math.ceil(file_total_len / HASH_CHUNK_SIZE) - 1
+                    f_stream = FileStream(f)
                     for chunk_id in download_chunk:
                         f.seek(chunk_id * HASH_CHUNK_SIZE)
 
@@ -98,10 +100,7 @@ class FileTransferClient:
                         if chunk_id == last_chunk_id:
                             size = file_total_len - chunk_id * HASH_CHUNK_SIZE
                         self.logger.log_debug(f"Receive chunk size: {size}")
-
-                        pipe = FilePipe(self.sock_stream, FileStream(f), size,
-                                        logger_name=f"FilePipe-Client-{self.client_id}-{file_path}")
-                        pipe.pump_file()
+                        self.pipe.pump_file(self.sock_stream, f_stream, size)
 
             self.logger.log_info(f"{file_path}: download completed")
             success = True
