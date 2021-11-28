@@ -10,6 +10,7 @@ import traceback
 from file_downloader import FileDownloader
 from file_pipe import FilePipe
 from hash_chunk_list import ChunkIdList
+import file_helper
 from left_error import LeftError
 from logger import Logger
 from left_constants import *
@@ -78,16 +79,22 @@ class FileTransferClient:
 
             self.logger.log_verbose(f"{file_path}: opening file handle")
             dir_path = os.path.dirname(file_path)
+
             if not os.path.exists(dir_path):
                 self.logger.log_verbose("File dir does not exist, mkdir first")
                 os.makedirs(dir_path, exist_ok=True)
 
             if request.opcode == OPCODE_DOWNLOAD_FILE:
-                with open(file_path, "wb") as f:
+                downloading_path = file_helper.get_downloading_path(file_path)
+                downloading_dir = os.path.dirname(downloading_path)
+                if not os.path.exists(downloading_dir):
+                    os.makedirs(downloading_dir, exist_ok=True)
+                with open(downloading_path, "wb") as f:
                     self.logger.log_verbose("file handle opened, start FileDownloader")
                     # downloader = FileDownloader(FileStream(f), self.sock_stream, file_total_len, None)
                     # downloader.download_file()
                     self.pipe.pump_file(self.sock_stream, FileStream(f), file_total_len)
+                os.rename(downloading_path, file_path)
             else:
                 with open(file_path, "r+b") as f:
                     self.logger.log_verbose("file handle opened, start FileDownloader")

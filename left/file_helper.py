@@ -66,7 +66,7 @@ def scan_path_tree(path: str, ignore_hidden_file_or_folder=True):
     for dir_entry in os.scandir(path):
         if dir_entry.is_dir(follow_symlinks=False):
             if ignore_hidden_file_or_folder:
-                if is_hidden_file(dir_entry.path): # because dir_entry.path for folder does not contains the ending "/"
+                if is_hidden_file(dir_entry.path):  # because dir_entry.path for folder does not contains the ending "/"
                     continue
             yield from scan_path_tree(dir_entry.path)
         else:
@@ -94,3 +94,12 @@ def is_hidden_folder(path) -> bool:
     """
     assert path[-1] == "/"
     return os.path.split(os.path.split(path)[0])[-1].startswith(".")
+
+
+def get_downloading_path(path: str) -> str:
+    """
+    Redirect a normalized file path to a temporary downloading folder
+    :param path:
+    :return:
+    """
+    return os.path.join(".downloading", path)
