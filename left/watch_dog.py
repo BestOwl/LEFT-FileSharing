@@ -47,7 +47,7 @@ class WatchDog:
             for path in self.file_table:
                 if not self.file_table[path].is_remote and not os.path.exists(path):
                     delete_list.append(path)
-                    self.dispatch_event(FileEvent(EVENT_REMOVE_FILE, self.file_table[path]), "File has been removed")
+                    # self.dispatch_event(FileEvent(EVENT_REMOVE_FILE, self.file_table[path]), "File has been removed")
             self.file_table.delete_range_from_file_table(delete_list)
             time.sleep(0.05)
 
@@ -71,8 +71,9 @@ class WatchDog:
                 if self.file_table[path].hash_md5_chunks != hash_chunks:
                     recorded_chunks = self.file_table[path].hash_md5_chunks
                     if len(recorded_chunks) > 0:
-                        self.dispatch_event(FileEvent(EVENT_SEND_MODIFIED_FILE, self.file_table[path]),
-                                            "Actual MD5 do not match")
+                        if hash_chunks != recorded_chunks:
+                            self.dispatch_event(FileEvent(EVENT_SEND_MODIFIED_FILE, self.file_table[path]),
+                                                "Actual MD5 do not match")
                     self.file_table.update_file_table_md5(path, hash_chunks)
                 else:
                     self.file_table.update_file_table_mtime(path, actual_mtime)
