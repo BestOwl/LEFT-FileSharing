@@ -21,7 +21,7 @@ class ConcurrentQueue:
 
     def push(self, item):
         self.list.append(item)
-        if self._blocking:
+        if self.blocking_mode:
             self._blocking.set()
 
     def push_range(self, items):
