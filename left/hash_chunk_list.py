@@ -5,6 +5,47 @@
 from stream import new_empty_buffer_stream, IOStream
 
 
+class ChunkIdList:
+
+    def __init__(self, chunk_id_list=None):
+        """
+        :param chunk_id_list: int list
+        """
+        if chunk_id_list is not None:
+            self.chunk_id_list = chunk_id_list
+        else:
+            self.chunk_id_list = []
+
+    def __len__(self):
+        return len(self.chunk_id_list)
+
+    def __getitem__(self, item):
+        return self.chunk_id_list[item]
+
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, ChunkIdList):
+            return False
+        if len(self.chunk_id_list) != len(o.chunk_id_list):
+            return False
+        for i in range(len(self.chunk_id_list)):
+            if self.chunk_id_list[i] != o.chunk_id_list[i]:
+                return False
+        return True
+
+    def __hash__(self) -> int:
+        return hash(self.chunk_id_list)
+
+    def append(self, chunk_id):
+        self.chunk_id_list.append(chunk_id)
+
+    def serialize(self):
+        io_stream = new_empty_buffer_stream()
+        io_stream.write_unsigned_int(len(self.chunk_id_list))
+        for chunk_id in self.chunk_id_list:
+            io_stream.write_unsigned_int(chunk_id)
+        return io_stream.buffer
+
+
 class HashChunkList:
 
     def __init__(self):
@@ -35,7 +76,7 @@ class HashChunkList:
     def __hash__(self) -> int:
         return hash(self.chunks)
 
-    def diff(self, old_hash_chunks):
+    def diff(self, old_hash_chunks) -> ChunkIdList:
         """
         Compare two HashChunkList object
         :param old_hash_chunks: other HashChunkList object
@@ -44,7 +85,7 @@ class HashChunkList:
             Currently this implementation only support additive changes detection, a empty list return means that
             we don't know how to handle this case, download the whole file instead.
         """
-        changed_ids = []
+        changed_ids = ChunkIdList()
         self_len = len(self)
         old_len = len(old_hash_chunks)
 
@@ -81,3 +122,11 @@ def deserialize_hash_chunk_list_from_stream(io_stream: IOStream):
             chunk_hash, _ = io_stream.read_string()
             chunks.append(chunk_hash)
     return chunks
+
+
+def deserialize_chunk_id_list_from_stream(io_stream: IOStream):
+    id_list_len = io_stream.read_unsigned_int()
+    id_list = ChunkIdList()
+    for _ in range(id_list_len):
+        id_list.append(io_stream.read_unsigned_int())
+    return id_list
